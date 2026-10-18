@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="es" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TacticalStudio Pro | Elite Football Video Analysis & Vector Telestration</title>
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          colors: {
+            slate: {
+              925: '#0a0f1d',
+              950: '#060913'
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Fabric.js v5.3.1 CDN (Motor Vectorial de Canvas) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
+
+  <!-- Lucide Icons CDN -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <!-- Estilos Personalizados -->
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body class="bg-[#0f172a] text-slate-100 h-screen w-screen overflow-hidden flex flex-col select-none font-sans">
+
+  <!-- ================= HEADER SUPERIOR ================= -->
+  <header class="h-13 bg-[#0a0f1d] border-b border-slate-800 px-4 py-2 flex items-center justify-between shrink-0 z-30">
+    <!-- Branding + Estado IndexedDB + Carga de Vídeo -->
+    <div class="flex items-center gap-3">
+      <div class="flex items-center gap-2.5">
+        <div class="w-8 h-8 rounded-lg bg-emerald-500/15 border border-emerald-500/40 flex items-center justify-center text-emerald-400 shadow-inner">
+          <i data-lucide="radar" class="w-4 h-4"></i>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="text-xs font-bold tracking-wider uppercase text-white">TACTICAL<span class="text-emerald-400">STUDIO</span></h1>
+            <span class="text-[9px] bg-sky-500/15 text-sky-400 border border-sky-500/30 px-1.5 py-0.2 rounded font-mono font-semibold">PRO VECTOR</span>
+          </div>
+          <div class="flex items-center gap-1.5 text-[10px] text-slate-400">
+            <span id="db-status-dot" class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+            <span id="db-status-text" class="font-mono">IndexedDB Sincronizado</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="h-5 w-px bg-slate-800 mx-1"></div>
+
+      <!-- Cargar Vídeo Local -->
+      <label for="video-file-input" class="cursor-pointer bg-[#1e293b] hover:bg-slate-700 text-slate-100 border border-slate-700 px-3 py-1.5 rounded-md text-xs font-medium flex items-center gap-2 transition shadow-xs">
+        <i data-lucide="folder-video" class="w-3.5 h-3.5 text-emerald-400"></i>
+        <span id="loaded-video-name" class="max-w-[170px] truncate">Cargar Partido (MP4/MOV)</span>
+        <input id="video-file-input" type="file" accept="video/mp4,video/quicktime,video/webm,video/*" class="hidden" />
+      </label>
+    </div>
+
+    <!-- Configuración de Captura (Equipo + Pre/Post Roll) -->
+    <div class="flex items-center gap-4 bg-[#0f172a] px-3 py-1 rounded-lg border border-slate-800">
+      <div class="flex items-center gap-1">
+        <span class="text-[11px] text-slate-400 mr-1 font-medium">Equipo:</span>
+        <button id="btn-team-home" class="px-2.5 py-1 rounded text-xs font-semibold bg-emerald-600 text-white transition">Local</button>
+        <button id="btn-team-away" class="px-2.5 py-1 rounded text-xs font-semibold bg-[#1e293b] text-slate-400 hover:text-white transition">Visitante</button>
+      </div>
+
+      <div class="h-4 w-px bg-slate-800"></div>
+
+      <div class="flex items-center gap-3 text-xs">
+        <div class="flex items-center gap-1.5" title="Segundos antes del evento (Pre-roll)">
+          <span class="text-slate-400 text-[11px]">Pre:</span>
+          <input id="input-preroll" type="number" min="0" max="60" value="5" class="w-11 bg-[#1e293b] border border-slate-700 rounded px-1.5 py-0.5 text-center font-mono text-xs text-emerald-400 focus:outline-none focus:border-emerald-500" />
+          <span class="text-[10px] text-slate-500">s</span>
+        </div>
+        <div class="flex items-center gap-1.5" title="Segundos después del evento (Post-roll)">
+          <span class="text-slate-400 text-[11px]">Post:</span>
+          <input id="input-postroll" type="number" min="1" max="60" value="5" class="w-11 bg-[#1e293b] border border-slate-700 rounded px-1.5 py-0.5 text-center font-mono text-xs text-sky-400 focus:outline-none focus:border-sky-500" />
+          <span class="text-[10px] text-slate-500">s</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Exportación / Importación de Proyectos -->
+    <div class="flex items-center gap-2">
+      <button id="btn-snapshot-png" class="bg-[#1e293b] hover:bg-slate-700 text-slate-200 border border-slate-700 px-2.5 py-1.5 rounded-md text-xs font-medium flex items-center gap-1.5 transition" title="Exportar fotograma + dibujo vectorial en PNG HD">
+        <i data-lucide="camera" class="w-3.5 h-3.5 text-sky-400"></i>
+        <span class="hidden xl:inline">Captura HD</span>
+      </button>
+
+      <label for="input-import-json" class="cursor-pointer bg-[#1e293b] hover:bg-slate-700 text-slate-200 border border-slate-700 px-2.5 py-1.5 rounded-md text-xs font-medium flex items-center gap-1.5 transition" title="Importar proyecto JSON previo">
+        <i data-lucide="upload" class="w-3.5 h-3.5 text-amber-400"></i>
+        <span class="hidden xl:inline">Importar JSON</span>
+        <input id="input-import-json" type="file" accept="application/json" class="hidden" />
+      </label>
+
+      <button id="btn-export-json" class="bg-[#1e293b] hover:bg-slate-700 text-slate-200 border border-slate-700 px-2.5 py-1.5 rounded-md text-xs font-medium flex items-center gap-1.5 transition" title="Exportar proyecto completo (.JSON)">
+        <i data-lucide="file-json" class="w-3.5 h-3.5 text-purple-400"></i>
+        <span>JSON</span>
+      </button>
+
+      <button id="btn-export-csv" class="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5 shadow-xs transition" title="Exportar matriz de eventos (.CSV) para Excel">
+        <i data-lucide="sheet" class="w-3.5 h-3.5"></i>
+        <span>Exportar CSV</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- ================= ÁREA PRINCIPAL (3 COLUMNAS) ================= -->
+  <div class="flex-1 flex overflow-hidden">
+
+    <!-- COLUMNA IZQUIERDA / CENTRO: REPRODUCTOR & CANVAS VECTORIAL FABRIC.JS -->
+    <main class="flex-1 flex flex-col bg-[#060913] border-r border-slate-800 relative overflow-hidden">
+
+      <!-- BARRA DE HERRAMIENTAS FLOTANTE DE DIBUJO TÁCTICO (FABRIC.JS) -->
+      <div class="absolute top-3 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1.5 bg-[#0f172a]/95 backdrop-blur-md border border-slate-700/80 rounded-xl px-3 py-1.5 shadow-2xl">
+        <!-- Herramientas Vectoriales -->
+        <div class="flex items-center gap-1">
+          <button data-tool="select" class="fabric-tool-btn active-tool px-2.5 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition" title="Seleccionar, mover, escalar o rotar objetos (V)">
+            <i data-lucide="mouse-pointer" class="w-3.5 h-3.5"></i>
+            <span class="hidden lg:inline">Cursor</span>
+          </button>
+
+          <button data-tool="arrow" class="fabric-tool-btn px-2.5 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition" title="Flecha Recta Continua: Línea de pase o basculación">
+            <i data-lucide="move-up-right" class="w-3.5 h-3.5"></i>
+            <span class="hidden lg:inline">Pase</span>
+          </button>
+
+          <button data-tool="curved-arrow" class="fabric-tool-btn px-2.5 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition" title="Flecha Curva Discontinua: Desmarque o conducción">
+            <i data-lucide="redo-dot" class="w-3.5 h-3.5"></i>
+            <span class="hidden lg:inline">Curva/Desmarque</span>
+          </button>
+
+          <button data-tool="spotlight" class="fabric-tool-btn px-2.5 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition" title="Luz de Foco (Spotlight): Oscurece el campo e ilumina al jugador">
+            <i data-lucide="flashlight" class="w-3.5 h-3.5 text-amber-400"></i>
+            <span class="hidden lg:inline">Spotlight</span>
+          </button>
+
+          <button data-tool="zone" class="fabric-tool-btn px-2.5 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition" title="Zona / Influencia: Óvalo táctico semitransparente de presión o espacio libre">
+            <i data-lucide="circle-dashed" class="w-3.5 h-3.5 text-sky-400"></i>
+            <span class="hidden lg:inline">Zona</span>
+          </button>
+
+          <button data-tool="player-tag" class="fabric-tool-btn px-2.5 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition" title="Etiqueta de Jugador: Dorsal y nombre vectorial flotante">
+            <i data-lucide="user-check" class="w-3.5 h-3.5 text-emerald-400"></i>
+            <span class="hidden lg:inline">Jugador</span>
+          </button>
+
+          <button data-tool="freehand" class="fabric-tool-btn px-2.5 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition" title="Trazo Libre">
+            <i data-lucide="pen-tool" class="w-3.5 h-3.5"></i>
+          </button>
+        </div>
+
+        <div class="h-5 w-px bg-slate-700 mx-1"></div>
+
+        <!-- Selector de Colores (Rojo, Azul, Amarillo, Verde, Blanco) -->
+        <div class="flex items-center gap-1.5 px-1">
+          <button data-color="#ef4444" class="color-btn w-4 h-4 rounded-full bg-red-500 ring-2 ring-white scale-110 transition" title="Rojo Táctico"></button>
+          <button data-color="#3b82f6" class="color-btn w-4 h-4 rounded-full bg-blue-500 opacity-75 hover:opacity-100 transition" title="Azul Táctico"></button>
+          <button data-color="#eab308" class="color-btn w-4 h-4 rounded-full bg-yellow-400 opacity-75 hover:opacity-100 transition" title="Amarillo Foco"></button>
+          <button data-color="#10b981" class="color-btn w-4 h-4 rounded-full bg-emerald-500 opacity-75 hover:opacity-100 transition" title="Verde Esmeralda"></button>
+          <button data-color="#ffffff" class="color-btn w-4 h-4 rounded-full bg-white opacity-75 hover:opacity-100 transition" title="Blanco"></button>
+        </div>
+
+        <!-- Grosor de Línea -->
+        <select id="select-stroke-width" class="bg-[#1e293b] border border-slate-700 rounded-md text-[11px] px-2 py-1 text-slate-200 focus:outline-none" title="Grosor de trazo">
+          <option value="3">Fino (3px)</option>
+          <option value="5" selected>Medio (5px)</option>
+          <option value="8">Grueso (8px)</option>
+        </select>
+
+        <div class="h-5 w-px bg-slate-700 mx-1"></div>
+
+        <!-- Acciones sobre Objetos Vectoriales -->
+        <button id="btn-save-drawing-to-clip" class="px-2 py-1 rounded-md bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 border border-emerald-500/30 text-[11px] font-medium flex items-center gap-1 transition" title="Guardar la pizarra actual como un nuevo clip táctico">
+          <i data-lucide="bookmark-plus" class="w-3.5 h-3.5"></i>
+          <span class="hidden xl:inline">Guardar Pizarra</span>
+        </button>
+
+        <button id="btn-delete-selected" class="p-1.5 rounded-md bg-[#1e293b] hover:bg-rose-500/20 text-slate-300 hover:text-rose-400 transition" title="Borrar objeto seleccionado (Supr / Backspace)">
+          <i data-lucide="eraser" class="w-3.5 h-3.5"></i>
+        </button>
+
+        <button id="btn-clear-canvas" class="p-1.5 rounded-md bg-[#1e293b] hover:bg-rose-500/20 text-rose-400 transition" title="Limpiar todo el Canvas">
+          <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+        </button>
+      </div>
+
+      <!-- ESCENARIO DE VÍDEO + OVERLAY CANVAS SINCRONIZADO PÍXEL A PÍXEL -->
+      <div id="video-stage" class="flex-1 relative flex items-center justify-center overflow-hidden bg-black">
+
+        <!-- Zona Drag & Drop Inicial -->
+        <div id="video-dropzone" class="absolute inset-6 border-2 border-dashed border-slate-800 hover:border-emerald-500/50 rounded-2xl flex flex-col items-center justify-center bg-[#0f172a]/85 z-10 transition cursor-pointer">
+          <div class="w-16 h-16 rounded-2xl bg-[#1e293b] border border-slate-700 flex items-center justify-center text-emerald-400 mb-3 shadow-lg">
+            <i data-lucide="film" class="w-8 h-8"></i>
+          </div>
+          <p class="text-sm font-semibold text-white">Arrastra y suelta el archivo de vídeo del partido (MP4 / MOV / WebM)</p>
+          <p class="text-xs text-slate-400 mt-1">Ejecución 100% local en navegador sin subida a servidores • Pizarra Fabric.js activa</p>
+          <button id="btn-trigger-upload" class="mt-4 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold transition shadow-md flex items-center gap-2">
+            <i data-lucide="upload-cloud" class="w-4 h-4"></i> Seleccionar Vídeo Local
+          </button>
+        </div>
+
+        <!-- Banner de Clip Activo -->
+        <div id="active-clip-indicator" class="hidden absolute bottom-4 left-4 z-20 bg-[#0f172a]/95 backdrop-blur border border-emerald-500/50 rounded-lg px-3 py-1.5 flex items-center gap-2.5 shadow-xl">
+          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+          <span id="active-clip-text" class="text-xs font-semibold text-white">Reproduciendo Clip</span>
+          <button id="btn-stop-clip" class="text-slate-400 hover:text-white text-xs bg-slate-800 px-1.5 py-0.5 rounded">Salir</button>
+        </div>
+
+        <!-- Reproductor HTML5 -->
+        <video id="main-video" class="max-w-full max-h-full block" playsinline></video>
+
+        <!-- Wrapper Exacto para el Canvas de Fabric.js -->
+        <div id="canvas-overlay-wrapper" class="absolute z-10 pointer-events-auto">
+          <canvas id="tactical-canvas"></canvas>
+        </div>
+      </div>
+
+      <!-- BARRA DE CONTROLES DE VÍDEO AVANZADA -->
+      <div class="h-13 bg-[#0f172a] border-t border-slate-800 px-4 flex items-center justify-between shrink-0 z-20">
+        <!-- Transporte Izquierda -->
+        <div class="flex items-center gap-1.5">
+          <button id="btn-play-pause" class="w-9 h-8 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white flex items-center justify-center transition shadow" title="Play / Pause (Espacio)">
+            <i id="icon-play-pause" data-lucide="play" class="w-4 h-4"></i>
+          </button>
+
+          <div class="h-4 w-px bg-slate-800 mx-1"></div>
+
+          <button id="btn-back-5" class="px-2 py-1 rounded bg-[#1e293b] hover:bg-slate-700 text-slate-200 text-xs font-mono transition" title="Retroceder 5 segundos (Shift + Flecha Izquierda)">-5s</button>
+          <button id="btn-back-1" class="px-2 py-1 rounded bg-[#1e293b] hover:bg-slate-700 text-slate-200 text-xs font-mono transition" title="Retroceder 1 segundo (Flecha Izquierda)">-1s</button>
+          <button id="btn-frame-prev" class="px-2 py-1 rounded bg-[#1e293b] hover:bg-slate-700 text-slate-300 text-xs transition" title="Fotograma anterior (,)">
+            <i data-lucide="step-back" class="w-3.5 h-3.5"></i>
+          </button>
+          <button id="btn-frame-next" class="px-2 py-1 rounded bg-[#1e293b] hover:bg-slate-700 text-slate-300 text-xs transition" title="Fotograma siguiente (.)">
+            <i data-lucide="step-forward" class="w-3.5 h-3.5"></i>
+          </button>
+          <button id="btn-fwd-1" class="px-2 py-1 rounded bg-[#1e293b] hover:bg-slate-700 text-slate-200 text-xs font-mono transition" title="Avanzar 1 segundo (Flecha Derecha)">+1s</button>
+          <button id="btn-fwd-5" class="px-2 py-1 rounded bg-[#1e293b] hover:bg-slate-700 text-slate-200 text-xs font-mono transition" title="Avanzar 5 segundos (Shift + Flecha Derecha)">+5s</button>
+        </div>
+
+        <!-- Contador de Tiempo Preciso (00:00.00) -->
+        <div class="flex items-center gap-2 bg-[#060913] px-3.5 py-1 rounded-lg border border-slate-800 font-mono text-xs shadow-inner">
+          <span id="timecode-current" class="text-emerald-400 font-bold tracking-wider">00:00.00</span>
+          <span class="text-slate-600">/</span>
+          <span id="timecode-duration" class="text-slate-400">00:00.00</span>
+        </div>
+
+        <!-- Velocidad de Reproducción (0.25x a 2x) y Auto-limpieza -->
+        <div class="flex items-center gap-3">
+          <label class="flex items-center gap-1.5 text-[11px] text-slate-400 cursor-pointer" title="Limpiar los dibujos vectoriales automáticamente al dar Play">
+            <input id="chk-autoclear" type="checkbox" checked class="accent-emerald-500 rounded" />
+            <span class="hidden md:inline">Auto-limpiar al reproducir</span>
+          </label>
+
+          <div class="h-4 w-px bg-slate-800"></div>
+
+          <div class="flex items-center bg-[#060913] p-0.5 rounded-lg border border-slate-800 text-[11px] font-mono">
+            <button data-rate="0.25" class="speed-btn px-2 py-0.5 rounded text-slate-400 hover:text-white transition">0.25x</button>
+            <button data-rate="0.5" class="speed-btn px-2 py-0.5 rounded text-slate-400 hover:text-white transition">0.5x</button>
+            <button data-rate="1" class="speed-btn px-2 py-0.5 rounded bg-[#1e293b] text-emerald-400 font-bold transition">1x</button>
+            <button data-rate="1.5" class="speed-btn px-2 py-0.5 rounded text-slate-400 hover:text-white transition">1.5x</button>
+            <button data-rate="2" class="speed-btn px-2 py-0.5 rounded text-slate-400 hover:text-white transition">2x</button>
+          </div>
+
+          <button id="btn-mute" class="text-slate-400 hover:text-white p-1 transition" title="Silenciar / Activar sonido">
+            <i id="icon-volume" data-lucide="volume-2" class="w-4 h-4"></i>
+          </button>
+        </div>
+      </div>
+    </main>
+
+    <!-- COLUMNA DERECHA: PANEL DE TAGGING Y REGISTRO DE EVENTOS CON MINIATURAS -->
+    <aside class="w-96 xl:w-[440px] bg-[#0f172a] flex flex-col shrink-0 overflow-hidden">
+
+      <!-- Cabecera de Panel Derecho -->
+      <div class="h-11 bg-[#0a0f1d] border-b border-slate-800 px-3 flex items-center justify-between shrink-0">
+        <div class="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-300">
+          <i data-lucide="tags" class="w-3.5 h-3.5 text-emerald-400"></i>
+          <span>Matriz de Etiquetado & Clips</span>
+        </div>
+        <button id="btn-open-new-tag" class="bg-[#1e293b] hover:bg-slate-700 text-emerald-400 border border-slate-700 px-2.5 py-1 rounded text-[11px] font-semibold flex items-center gap-1 transition">
+          <i data-lucide="plus" class="w-3 h-3"></i> Nuevo Botón
+        </button>
+      </div>
+
+      <!-- SECCIÓN SUPERIOR: BOTONES DE ETIQUETADO RÁPIDO (ATAQUE, DEFENSA, ABP, TRANSICIONES) -->
+      <div id="tagging-matrix-container" class="h-[44%] overflow-y-auto p-3 space-y-2.5 custom-scrollbar border-b border-slate-800">
+        <!-- Se inyecta dinámicamente desde app.js -->
+      </div>
+
+      <!-- SECCIÓN INFERIOR: FILTRO Y LISTA DE CLIPS GRABADOS (CON MINIATURA Y VECTORES) -->
+      <div class="flex-1 flex flex-col overflow-hidden bg-[#0a0f1d]/60">
+        <div class="p-2.5 bg-[#0f172a] border-b border-slate-800 flex items-center justify-between gap-2 shrink-0">
+          <div class="relative flex-1">
+            <i data-lucide="search" class="w-3.5 h-3.5 text-slate-500 absolute left-2.5 top-2"></i>
+            <input id="input-filter-clips" type="text" placeholder="Buscar etiqueta, equipo o nota..." class="w-full bg-[#1e293b] border border-slate-700 rounded-md pl-8 pr-2 py-1 text-xs text-slate-200 focus:outline-none focus:border-emerald-500" />
+          </div>
+
+          <select id="select-filter-category" class="bg-[#1e293b] border border-slate-700 rounded-md px-2 py-1 text-xs text-slate-200 focus:outline-none">
+            <option value="ALL">Todas (<span id="count-all-clips">0</span>)</option>
+            <option value="Ataque">Ataque</option>
+            <option value="Defensa">Defensa</option>
+            <option value="Transiciones">Transiciones</option>
+            <option value="ABP">ABP</option>
+          </select>
+
+          <button id="btn-clear-all-clips" class="p-1.5 text-slate-500 hover:text-rose-400 transition" title="Borrar todos los eventos del proyecto">
+            <i data-lucide="trash" class="w-3.5 h-3.5"></i>
+          </button>
+        </div>
+
+        <!-- Contenedor de Tarjetas de Clips con Miniatura -->
+        <div id="clips-list-container" class="flex-1 overflow-y-auto p-2.5 space-y-2 custom-scrollbar"></div>
+      </div>
+    </aside>
+  </div>
+
+  <!-- ================= PANEL INFERIOR: TIMELINE DE MARCAS MULTICAPA ================= -->
+  <footer class="h-40 bg-[#0a0f1d] border-t border-slate-800 flex flex-col shrink-0 select-none z-30">
+    <!-- Barra de Estado del Timeline -->
+    <div class="h-7 bg-[#060913] border-b border-slate-800/80 px-3 flex items-center justify-between text-[11px] text-slate-400">
+      <div class="flex items-center gap-2">
+        <i data-lucide="gantt-chart" class="w-3.5 h-3.5 text-emerald-400"></i>
+        <span class="font-bold text-slate-300 uppercase tracking-wider text-[10px]">Timeline de Eventos Sincronizado</span>
+        <span class="text-slate-700">|</span>
+        <span class="text-[10px] text-slate-400">Haz clic en cualquier pista para saltar en el vídeo o en una marca para cargar el clip y su dibujo táctico</span>
+      </div>
+      <div class="flex items-center gap-3 font-mono text-[10px]">
+        <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-emerald-500"></span> Ataque</span>
+        <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-sky-500"></span> Defensa</span>
+        <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-amber-500"></span> Transiciones</span>
+        <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-purple-500"></span> ABP</span>
+      </div>
+    </div>
+
+    <!-- Pistas por Categoría -->
+    <div class="flex-1 flex overflow-hidden relative">
+      <!-- Cabeceras de Pista -->
+      <div class="w-32 bg-[#0f172a] border-r border-slate-800 flex flex-col justify-between py-1.5 px-2.5 text-[10px] font-semibold shrink-0 z-10">
+        <div class="h-6 flex items-center gap-1.5 text-emerald-400"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> Ataque</div>
+        <div class="h-6 flex items-center gap-1.5 text-sky-400"><span class="w-1.5 h-1.5 rounded-full bg-sky-400"></span> Defensa</div>
+        <div class="h-6 flex items-center gap-1.5 text-amber-400"><span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span> Transiciones</div>
+        <div class="h-6 flex items-center gap-1.5 text-purple-400"><span class="w-1.5 h-1.5 rounded-full bg-purple-400"></span> ABP</div>
+      </div>
+
+      <!-- Lienzo de Pistas y Aguja -->
+      <div id="timeline-interactive-area" class="flex-1 bg-[#060913] relative flex flex-col justify-between py-1.5 cursor-pointer overflow-hidden">
+        <!-- Líneas Guía Verticales -->
+        <div class="absolute inset-0 pointer-events-none flex justify-between px-8 opacity-10">
+          <div class="h-full w-px bg-slate-400"></div>
+          <div class="h-full w-px bg-slate-400"></div>
+          <div class="h-full w-px bg-slate-400"></div>
+          <div class="h-full w-px bg-slate-400"></div>
+          <div class="h-full w-px bg-slate-400"></div>
+          <div class="h-full w-px bg-slate-400"></div>
+          <div class="h-full w-px bg-slate-400"></div>
+          <div class="h-full w-px bg-slate-400"></div>
+        </div>
+
+        <div id="timeline-track-Ataque" class="relative h-6 w-full bg-[#0f172a]/70 border-y border-slate-800/50"></div>
+        <div id="timeline-track-Defensa" class="relative h-6 w-full bg-[#0f172a]/70 border-y border-slate-800/50"></div>
+        <div id="timeline-track-Transiciones" class="relative h-6 w-full bg-[#0f172a]/70 border-y border-slate-800/50"></div>
+        <div id="timeline-track-ABP" class="relative h-6 w-full bg-[#0f172a]/70 border-y border-slate-800/50"></div>
+
+        <!-- Cabezal de Reproducción (Playhead) -->
+        <div id="timeline-playhead" class="absolute top-0 bottom-0 left-0 w-0.5 bg-rose-500 pointer-events-none z-20" style="left: 0%;">
+          <div class="w-2.5 h-2.5 -ml-[4px] bg-rose-500 rotate-45"></div>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ================= MODAL: EDITAR CLIP / NOTA TÁCTICA ================= -->
+  <div id="modal-edit-clip" class="hidden fixed inset-0 bg-black/75 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+    <div class="bg-[#0f172a] border border-slate-700 rounded-xl w-full max-w-md overflow-hidden shadow-2xl">
+      <div class="px-4 py-3 bg-[#0a0f1d] border-b border-slate-800 flex items-center justify-between">
+        <h3 class="text-xs font-bold uppercase tracking-wider text-white flex items-center gap-2">
+          <i data-lucide="sliders-horizontal" class="w-4 h-4 text-emerald-400"></i> Editar Registro de Clip
+        </h3>
+        <button id="btn-close-edit-modal" class="text-slate-400 hover:text-white">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+      <div class="p-4 space-y-3 text-xs">
+        <input type="hidden" id="edit-clip-id" />
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-slate-400 mb-1 font-medium">Etiqueta</label>
+            <input id="edit-clip-label" type="text" class="w-full bg-[#1e293b] border border-slate-700 rounded px-2.5 py-1.5 text-white focus:outline-none focus:border-emerald-500" />
+          </div>
+          <div>
+            <label class="block text-slate-400 mb-1 font-medium">Equipo</label>
+            <select id="edit-clip-team" class="w-full bg-[#1e293b] border border-slate-700 rounded px-2.5 py-1.5 text-white focus:outline-none focus:border-emerald-500">
+              <option value="Local">Local</option>
+              <option value="Visitante">Visitante</option>
+            </select>
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-slate-400 mb-1 font-medium">Inicio (seg)</label>
+            <input id="edit-clip-start" type="number" step="0.1" min="0" class="w-full bg-[#1e293b] border border-slate-700 rounded px-2.5 py-1.5 font-mono text-emerald-400 focus:outline-none focus:border-emerald-500" />
+          </div>
+          <div>
+            <label class="block text-slate-400 mb-1 font-medium">Fin (seg)</label>
+            <input id="edit-clip-end" type="number" step="0.1" min="0" class="w-full bg-[#1e293b] border border-slate-700 rounded px-2.5 py-1.5 font-mono text-emerald-400 focus:outline-none focus:border-emerald-500" />
+          </div>
+        </div>
+        <div>
+          <label class="block text-slate-400 mb-1 font-medium">Observación Táctica</label>
+          <textarea id="edit-clip-note" rows="3" placeholder="Ej: Desajuste entre central y lateral tras pérdida en carril interior..." class="w-full bg-[#1e293b] border border-slate-700 rounded p-2.5 text-white focus:outline-none focus:border-emerald-500 resize-none"></textarea>
+        </div>
+      </div>
+      <div class="px-4 py-3 bg-[#0a0f1d] border-t border-slate-800 flex justify-between items-center">
+        <button id="btn-update-clip-vectors" class="px-2.5 py-1.5 rounded bg-sky-500/15 hover:bg-sky-500/25 text-sky-400 border border-sky-500/30 text-[11px] font-medium" title="Sobrescribir el dibujo del clip con lo que hay actualmente en el Canvas">
+          Vincular Pizarra Actual
+        </button>
+        <div class="flex gap-2">
+          <button id="btn-cancel-edit-modal" class="px-3 py-1.5 rounded bg-[#1e293b] text-slate-300 text-xs">Cancelar</button>
+          <button id="btn-save-edit-modal" class="px-4 py-1.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold">Guardar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= MODAL: CREAR NUEVO BOTÓN DE ETIQUETADO ================= -->
+  <div id="modal-new-tag" class="hidden fixed inset-0 bg-black/75 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+    <div class="bg-[#0f172a] border border-slate-700 rounded-xl w-full max-w-sm overflow-hidden shadow-2xl">
+      <div class="px-4 py-3 bg-[#0a0f1d] border-b border-slate-800 flex items-center justify-between">
+        <h3 class="text-xs font-bold uppercase tracking-wider text-white flex items-center gap-2">
+          <i data-lucide="plus-circle" class="w-4 h-4 text-emerald-400"></i> Nuevo Botón de Etiquetado
+        </h3>
+        <button id="btn-close-tag-modal" class="text-slate-400 hover:text-white">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+      <div class="p-4 space-y-3 text-xs">
+        <div>
+          <label class="block text-slate-400 mb-1 font-medium">Nombre de la Etiqueta</label>
+          <input id="input-tag-name" type="text" placeholder="Ej: Presión tras Pérdida" class="w-full bg-[#1e293b] border border-slate-700 rounded px-2.5 py-1.5 text-white focus:outline-none focus:border-emerald-500" />
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-slate-400 mb-1 font-medium">Categoría</label>
+            <select id="select-tag-category" class="w-full bg-[#1e293b] border border-slate-700 rounded px-2.5 py-1.5 text-white focus:outline-none focus:border-emerald-500">
+              <option value="Ataque">Ataque</option>
+              <option value="Defensa">Defensa</option>
+              <option value="Transiciones">Transiciones</option>
+              <option value="ABP">ABP</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-slate-400 mb-1 font-medium">Atajo Teclado (1 tecla)</label>
+            <input id="input-tag-shortcut" type="text" maxlength="1" placeholder="Ej: G" class="w-full bg-[#1e293b] border border-slate-700 rounded px-2.5 py-1.5 font-mono uppercase text-center text-emerald-400 focus:outline-none focus:border-emerald-500" />
+          </div>
+        </div>
+      </div>
+      <div class="px-4 py-3 bg-[#0a0f1d] border-t border-slate-800 flex justify-end gap-2">
+        <button id="btn-cancel-tag-modal" class="px-3 py-1.5 rounded bg-[#1e293b] text-slate-300 text-xs">Cancelar</button>
+        <button id="btn-save-tag-modal" class="px-4 py-1.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold">Añadir Botón</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Contenedor de Notificaciones Toast -->
+  <div id="toast-wrapper" class="fixed bottom-44 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+  <!-- Aplicación Principal -->
+  <script src="app.js"></script>
+</body>
+</html>
