@@ -6,16 +6,17 @@
 document.addEventListener('DOMContentLoaded', async () => {
   lucide.createIcons();
 
-  const RCL_LOGO_URL = 'https://github.com/rclscoutgroup/portal-scouting/blob/main/RCL_Scout_Logo2.png?raw=true';
+  // URL directa a raw.githubusercontent.com (con soporte CORS directo sin redirección 302)
+  const RCL_LOGO_RAW_URL = 'https://raw.githubusercontent.com/rclscoutgroup/portal-scouting/main/RCL_Scout_Logo2.png';
   const rclLogoImg = new Image();
   rclLogoImg.crossOrigin = 'anonymous';
-  rclLogoImg.src = RCL_LOGO_URL;
+  rclLogoImg.src = RCL_LOGO_RAW_URL;
 
   // ============================================================================
   // 1. PERSISTENCIA EN INDEXEDDB
   // ============================================================================
   const DB_NAME = 'RCLVideoAnalisisDB';
-  const DB_VERSION = 2;
+  const DB_VERSION = 3;
   const STORE_NAME = 'rcl_projects';
   const PROJECT_KEY = 'rcl_active_session';
 
@@ -73,19 +74,20 @@ document.addEventListener('DOMContentLoaded', async () => {
   const state = {
     videoLoaded: false,
     activeTeam: 'Local',
-    activeClip: null,
+    selectedClipId: null, // ID del clip actualmente seleccionado para meterle o editarle la pizarra
+    activeClip: null,     // Clip actualmente en reproducción
+    hasShownClipDrawing: false, // Controla la pausa automática en el segundo de la pizarra durante la reproducción
     playlistQueue: [],
     isPlayingPlaylist: false,
     drawing: {
       tool: 'select',
-      color: '#eab308', // Amarillo táctico LongoMatch por defecto
+      color: '#eab308',
       size: 65,
-      useHatchPattern: true, // Trama rayada diagonal estilo pro activada por defecto
+      useHatchPattern: true,
       isDragging: false,
       startX: 0,
       startY: 0,
       tempObject: null,
-      // Estado para Enlaces (Cadena LongoMatch) y Polígonos multiclick
       chainNodes: [],
       chainLines: [],
       polygonPoints: [],
@@ -236,7 +238,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       renderW = renderH * videoRatio;
     } else {
       renderW = stageRect.width;
-      renderH = renderWidth = renderW / videoRatio;
+      renderH = renderW / videoRatio;
     }
 
     canvasWrapper.style.width = `${renderW}px`;
@@ -252,7 +254,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   video.addEventListener('loadedmetadata', syncOverlayWithVideo);
 
   /**
-   * Crea un patrón vectorial de Trama Rayada Diagonal (idéntico al sombreado táctico de LongoMatch/Metrica)
+   * Patrón vectorial de Trama Rayada Diagonal (idéntico al sombreado táctico de LongoMatch/Metrica)
    */
   function createDiagonalHatchPattern(colorHex = '#10b981') {
     const patternCanvas = document.createElement('canvas');
@@ -260,11 +262,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     patternCanvas.height = 22;
     const pCtx = patternCanvas.getContext('2d');
 
-    // Fondo suavemente tintado
     pCtx.fillStyle = hexToRgba(colorHex, 0.14);
     pCtx.fillRect(0, 0, 22, 22);
 
-    // Línea diagonal oscura/contraste + línea del color elegido
     pCtx.strokeStyle = 'rgba(10, 15, 29, 0.72)';
     pCtx.lineWidth = 4.5;
     pCtx.lineCap = 'round';
@@ -292,7 +292,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       : hexToRgba(colorHex, 0.26);
   }
 
-  // Botón para alternar Trama Rayada vs Relleno Translúcido
   document.getElementById('btn-toggle-hatch').addEventListener('click', () => {
     state.drawing.useHatchPattern = !state.drawing.useHatchPattern;
     const btn = document.getElementById('btn-toggle-hatch');
@@ -305,7 +304,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       lbl.textContent = 'Sólido Suave';
     }
 
-    // Si hay una zona o polígono seleccionado, actualizar su relleno en vivo
     const active = fabricCanvas.getActiveObject();
     if (active && (active.tacticalType === 'zone' || active.type === 'polygon')) {
       active.set('fill', getZoneFill(state.drawing.color));
@@ -319,13 +317,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   /**
    * A. ANILLO 3D DE JUGADOR PARA ENLACE ESTILO LONGOMATCH
-   * Replica exactamente el pedestal elíptico amarillo con corona superior discontinua de tu imagen
    */
   function createLongoMatchPlayerNode(x, y, color = '#eab308', radius = 38) {
     const rx = radius;
     const ry = Math.round(radius * 0.42);
 
-    // Sombra/Base elíptica rellena
     const baseDisk = new fabric.Ellipse({
       rx: rx,
       ry: ry,
@@ -339,7 +335,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       shadow: new fabric.Shadow({ color: color, blur: 12, offsetX: 0, offsetY: 2 })
     });
 
-    // Corona 3D elevada discontinua alrededor del jugador (efecto almena / halo de LongoMatch)
     const upperCrown = new fabric.Ellipse({
       rx: rx * 1.04,
       ry: ry * 1.08,
@@ -353,7 +348,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       top: -6
     });
 
-    // Anillo interior brillante
     const innerRing = new fabric.Ellipse({
       rx: rx * 0.6,
       ry: ry * 0.6,
@@ -367,7 +361,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       top: 0
     });
 
-    const nodeGroup = new fabric.Group([baseDisk, upperCrown, innerRing], {
+    return new fabric.Group([baseDisk, upperCrown, innerRing], {
       left: x,
       top: y,
       originX: 'center',
@@ -379,17 +373,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       customSize: radius,
       connectedLines: []
     });
-
-    return nodeGroup;
   }
 
-  /**
-   * Línea de Enlace Táctico Bitono entre dos Nodos de Jugador (Estilo LongoMatch)
-   */
   function createLongoMatchLinkLine(nodeA, nodeB) {
-    // Línea exterior rojiza/naranja intensa con núcleo luminoso
     const line = new fabric.Line([nodeA.left, nodeA.top, nodeB.left, nodeB.top], {
-      stroke: '#ea580c', // Naranja/Rojo táctico intenso como en la captura
+      stroke: '#ea580c',
       strokeWidth: 5,
       strokeLineCap: 'round',
       selectable: false,
@@ -405,7 +393,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     return line;
   }
 
-  // Actualizar automáticamente las líneas de enlace cuando el analista mueve a un jugador
   fabricCanvas.on('object:moving', (e) => {
     const obj = e.target;
     if (obj && obj.tacticalType === 'chain-node' && Array.isArray(obj.connectedLines)) {
@@ -428,7 +415,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     const r = Math.max(25, radius);
     const outer = 3200;
 
-    // Máscara oscura con agujero central transparente (regla evenodd)
     const maskPathStr = [
       `M ${-outer} ${-outer} L ${outer} ${-outer} L ${outer} ${outer} L ${-outer} ${outer} Z`,
       `M ${r} 0 A ${r} ${r} 0 1 0 ${-r} 0 A ${r} ${r} 0 1 0 ${r} 0 Z`
@@ -443,7 +429,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       top: 0
     });
 
-    // Haz de luz cónico desde arriba
     const lightBeam = new fabric.Polygon(
       [
         { x: -r * 0.42, y: -r * 3.4 },
@@ -460,7 +445,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     );
 
-    // Anillo 3D iluminado en los pies del jugador
     const glowRing = new fabric.Ellipse({
       rx: r,
       ry: r * 0.48,
@@ -564,7 +548,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   /**
-   * D. RECTÁNGULOS Y ÓVALOS DE ZONA (Con Trama Rayada o Sólido)
+   * D. RECTÁNGULOS Y ÓVALOS DE ZONA
    */
   function createRectZone(x1, y1, x2, y2, color) {
     const left = Math.min(x1, x2);
@@ -678,8 +662,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ============================================================================
   // 6. EDICIÓN EN VIVO DE TAMAÑO Y COLOR DE SPOTLIGHTS Y OBJETOS COLOCADOS
   // ============================================================================
-
-  // Cuando el usuario selecciona un objeto en el Canvas, sincronizar el slider de tamaño
   function syncControlsWithSelectedObject() {
     const active = fabricCanvas.getActiveObject();
     if (!active) return;
@@ -698,7 +680,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   fabricCanvas.on('selection:created', syncControlsWithSelectedObject);
   fabricCanvas.on('selection:updated', syncControlsWithSelectedObject);
 
-  // Slider de Tamaño/Radio en vivo: Redimensiona el Spotlight, Nodo o cualquier objeto seleccionado
   sizeSlider.addEventListener('input', (e) => {
     const newVal = parseInt(e.target.value, 10);
     sizeLabel.textContent = newVal;
@@ -708,7 +689,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!active) return;
 
     if (active.tacticalType === 'spotlight') {
-      // Reconstruir el Spotlight en la misma posición con el nuevo radio exacto para mantener nitidez
       const posX = active.left;
       const posY = active.top;
       const col = active.customColor || state.drawing.color;
@@ -719,17 +699,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       fabricCanvas.renderAll();
     } else if (active.tacticalType === 'chain-node') {
       const baseSize = active.customSize || 38;
-      const scaleFactor = newVal / baseSize;
-      active.scale(scaleFactor);
+      active.scale(newVal / baseSize);
       fabricCanvas.renderAll();
     } else {
-      const scaleFactor = newVal / 65;
-      active.scale(scaleFactor);
+      active.scale(newVal / 65);
       fabricCanvas.renderAll();
     }
   });
 
-  // Cambio de color en vivo para la herramienta activa Y para el objeto seleccionado (incluidos Spotlights)
   function applyNewColor(newColor) {
     state.drawing.color = newColor;
     document.getElementById('input-custom-color').value = newColor;
@@ -791,14 +768,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   // 7. FLUJO DE DIBUJO: ENLACES LONGOMATCH, POLÍGONOS Y HERRAMIENTAS
   // ============================================================================
   function finalizeActiveChainOrPolygon() {
-    // Finalizar cadena de enlaces LongoMatch
     if (state.drawing.chainNodes.length > 0) {
       state.drawing.chainNodes = [];
       state.drawing.chainLines = [];
-      notify('Línea de enlace táctico completada. Puedes mover a cualquier jugador con el Cursor.', 'success');
+      notify('Enlace completado. Pulsa "Guardar en Clip" para integrarlo en el clip actual.', 'success');
     }
 
-    // Finalizar polígono táctico
     if (state.drawing.polygonPoints.length >= 3) {
       state.drawing.polygonPreviewObjects.forEach(o => fabricCanvas.remove(o));
       state.drawing.polygonPreviewObjects = [];
@@ -819,7 +794,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       fabricCanvas.add(poly);
       fabricCanvas.setActiveObject(poly);
       fabricCanvas.renderAll();
-      notify('Polígono de zona creado.', 'success');
+      notify('Polígono creado. Pulsa "Guardar en Clip" para integrarlo en el clip.', 'success');
     } else if (state.drawing.polygonPoints.length > 0) {
       state.drawing.polygonPreviewObjects.forEach(o => fabricCanvas.remove(o));
       state.drawing.polygonPreviewObjects = [];
@@ -878,7 +853,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   btnFinishChain.addEventListener('click', () => setActiveTool('select'));
 
-  // Eventos de ratón sobre el Canvas de Fabric
   fabricCanvas.on('mouse:down', (opt) => {
     const tool = state.drawing.tool;
     if (tool === 'select') return;
@@ -886,7 +860,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (state.videoLoaded && !video.paused) video.pause();
     const pt = fabricCanvas.getPointer(opt.e);
 
-    // 1. Herramienta ENLACE ESTILO LONGOMATCH (Clic sobre cada jugador)
     if (tool === 'chain-link') {
       const nodeRadius = Math.max(28, Math.min(60, Math.round(state.drawing.size * 0.6)));
       const newNode = createLongoMatchPlayerNode(pt.x, pt.y, state.drawing.color, nodeRadius);
@@ -907,7 +880,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       return;
     }
 
-    // 2. Herramienta POLÍGONO PUNTO A PUNTO
     if (tool === 'polygon-zone') {
       state.drawing.polygonPoints.push({ x: pt.x, y: pt.y });
 
@@ -943,7 +915,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       return;
     }
 
-    // 3. Herramienta SPOTLIGHT (Foco ajustable)
     if (tool === 'spotlight') {
       const spot = createSpotlightObject(pt.x, pt.y, state.drawing.size, state.drawing.color);
       fabricCanvas.add(spot);
@@ -953,7 +924,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       return;
     }
 
-    // 4. Herramienta ETIQUETA DE JUGADOR
     if (tool === 'player-tag') {
       const text = prompt('Dorsal y Nombre/Rol (Ej: 6 - Zubimendi | Pivote):', '10 - Jugador');
       if (text && text.trim()) {
@@ -969,13 +939,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       return;
     }
 
-    // 5. Herramientas por Arrastre (Rectángulo, Óvalo, Flecha Recta, Flecha Curva)
     state.drawing.isDragging = true;
     state.drawing.startX = pt.x;
     state.drawing.startY = pt.y;
   });
 
-  // Doble clic cierra automáticamente el Enlace o Polígono y pasa a Cursor
   fabricCanvas.on('mouse:dblclick', () => {
     if (state.drawing.tool === 'chain-link' || state.drawing.tool === 'polygon-zone') {
       setActiveTool('select');
@@ -1050,16 +1018,55 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('btn-delete-selected').addEventListener('click', deleteSelectedObjects);
   document.getElementById('btn-clear-canvas').addEventListener('click', clearFabricCanvas);
 
+  /**
+   * GUARDAR PIZARRA DENTRO DEL CLIP (SIN DUPLICAR CLIPS)
+   * 1. Si hay un clip seleccionado (state.selectedClipId), mete la pizarra dentro de ese clip.
+   * 2. Si no hay clip seleccionado pero el vídeo está detenido dentro del rango [start, end] de un clip existente, lo mete ahí.
+   * 3. Solo si no existe ningún clip en ese tiempo crea uno nuevo.
+   */
   document.getElementById('btn-save-drawing-clip').addEventListener('click', async () => {
+    // Cerrar enlaces o polígonos abiertos antes de serializar
+    if (state.drawing.tool === 'chain-link' || state.drawing.tool === 'polygon-zone') {
+      setActiveTool('select');
+    }
+
     if (fabricCanvas.getObjects().length === 0) {
-      notify('Dibuja primero en la pizarra para guardarla como clip.', 'warning');
+      notify('Dibuja primero en la pizarra para guardarla dentro del clip.', 'warning');
       return;
     }
-    await registerClipEvent({ id: 'pizarra', name: 'Pizarra RCL', category: 'Ataque' });
+
+    fabricCanvas.discardActiveObject();
+    fabricCanvas.renderAll();
+
+    const now = state.videoLoaded ? +video.currentTime.toFixed(2) : 0;
+
+    // Buscar clip destino: primero el clip seleccionado, si no uno que contenga el tiempo actual
+    let targetClip = state.clips.find(c => c.id === state.selectedClipId);
+    if (!targetClip) {
+      targetClip = state.clips.find(c => now >= c.start && now <= c.end);
+    }
+
+    if (targetClip) {
+      targetClip.fabricJson = fabricCanvas.toJSON(['tacticalType', 'customColor', 'customSize']);
+      // Guardamos el segundo exacto dentro del clip donde el analista pausó y dibujó la pizarra
+      targetClip.drawTimestamp = (now >= targetClip.start && now <= targetClip.end)
+        ? now
+        : targetClip.timestamp;
+      targetClip.thumbnail = generateThumbnailBase64();
+      state.selectedClipId = targetClip.id;
+
+      await persistState();
+      renderClipsList();
+      renderTimeline();
+      notify(`Pizarra integrada dentro del clip "${targetClip.label}" (en ${formatTimeShort(targetClip.drawTimestamp)}) sin duplicar.`, 'success');
+    } else {
+      // Si no había ningún clip creado en ese momento, creamos uno nuevo con la pizarra integrada
+      await registerClipEvent({ id: 'pizarra', name: 'Pizarra Táctica RCL', category: 'Ataque' });
+    }
   });
 
   // ============================================================================
-  // 8. REPRODUCTOR DE VÍDEO Y CONTROLES
+  // 8. REPRODUCTOR DE VÍDEO Y PAUSA AUTOMÁTICA EN LA PIZARRA DEL CLIP
   // ============================================================================
   function loadLocalVideo(file) {
     if (!file || !file.type.startsWith('video/')) {
@@ -1131,16 +1138,30 @@ document.addEventListener('DOMContentLoaded', async () => {
       timelinePlayhead.style.left = `${pct}%`;
     }
 
-    // Control de fin de clip individual o avance al siguiente clip de la Playlist
-    if (state.activeClip && video.currentTime >= state.activeClip.end) {
-      if (state.isPlayingPlaylist && state.playlistQueue.length > 0) {
-        const nextClip = state.playlistQueue.shift();
-        playClipAndLoadVectors(nextClip, true);
-      } else {
+    if (state.activeClip) {
+      const clip = state.activeClip;
+      const hasVectors = clip.fabricJson && clip.fabricJson.objects && clip.fabricJson.objects.length > 0;
+      const targetDrawSec = clip.drawTimestamp !== undefined ? clip.drawTimestamp : clip.timestamp;
+
+      // Si el clip tiene una pizarra guardada adentro y llegamos a su segundo exacto, mostrar la pizarra automáticamente
+      if (hasVectors && !state.hasShownClipDrawing && video.currentTime >= targetDrawSec) {
+        state.hasShownClipDrawing = true;
         video.pause();
-        state.activeClip = null;
-        state.isPlayingPlaylist = false;
-        document.getElementById('active-clip-indicator').classList.add('hidden');
+        loadVectorsIntoCanvas(clip.fabricJson, targetCanvas => targetCanvas.renderAll());
+        notify(`Pizarra del clip mostrada en ${formatTimePrecise(targetDrawSec)}. Pulsa Espacio para continuar el clip.`, 'info');
+        return;
+      }
+
+      // Fin del clip
+      if (video.currentTime >= clip.end) {
+        if (state.isPlayingPlaylist && state.playlistQueue.length > 0) {
+          const nextClip = state.playlistQueue.shift();
+          playClip(nextClip, true);
+        } else {
+          video.pause();
+          state.activeClip = null;
+          state.isPlayingPlaylist = false;
+        }
       }
     }
   });
@@ -1149,9 +1170,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function seekRelative(delta) {
     if (!state.videoLoaded) return;
-    state.activeClip = null;
-    state.isPlayingPlaylist = false;
-    document.getElementById('active-clip-indicator').classList.add('hidden');
     video.currentTime = Math.max(0, Math.min(video.duration || 0, video.currentTime + delta));
   }
 
@@ -1182,20 +1200,24 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   document.getElementById('btn-stop-clip').addEventListener('click', () => {
     state.activeClip = null;
+    state.selectedClipId = null;
     state.isPlayingPlaylist = false;
     state.playlistQueue = [];
     video.pause();
     document.getElementById('active-clip-indicator').classList.add('hidden');
+    renderClipsList();
   });
 
   // ============================================================================
-  // 9. CAPTURA DE MINIATURAS Y SNAPSHOT HD CON MARCA DE AGUA RCL
+  // 9. CAPTURA DE MINIATURAS Y SNAPSHOT FULL HD CON LOGO RCL
   // ============================================================================
   function generateThumbnailBase64() {
     const c = document.createElement('canvas');
-    c.width = 240;
-    c.height = 135;
+    c.width = 320;
+    c.height = 180;
     const ctx = c.getContext('2d');
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
 
     if (state.videoLoaded && video.videoWidth > 0) {
       ctx.drawImage(video, 0, 0, c.width, c.height);
@@ -1207,7 +1229,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (fabricCanvas.lowerCanvasEl) {
       ctx.drawImage(fabricCanvas.lowerCanvasEl, 0, 0, c.width, c.height);
     }
-    return c.toDataURL('image/jpeg', 0.72);
+    return c.toDataURL('image/jpeg', 0.85);
   }
 
   document.getElementById('btn-snapshot-png').addEventListener('click', () => {
@@ -1215,6 +1237,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     out.width = (state.videoLoaded && video.videoWidth) ? video.videoWidth : 1920;
     out.height = (state.videoLoaded && video.videoHeight) ? video.videoHeight : 1080;
     const ctx = out.getContext('2d');
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
 
     if (state.videoLoaded && video.videoWidth) {
       ctx.drawImage(video, 0, 0, out.width, out.height);
@@ -1227,25 +1251,22 @@ document.addEventListener('DOMContentLoaded', async () => {
     fabricCanvas.renderAll();
     ctx.drawImage(fabricCanvas.lowerCanvasEl, 0, 0, out.width, out.height);
 
-    // Sello oficial RCL Video Análisis en esquina superior derecha
     try {
       if (rclLogoImg.complete && rclLogoImg.naturalWidth > 0) {
-        const logoSize = Math.round(out.height * 0.075);
-        ctx.drawImage(rclLogoImg, out.width - logoSize - 24, 24, logoSize, logoSize);
+        const logoSize = Math.round(out.height * 0.08);
+        ctx.drawImage(rclLogoImg, out.width - logoSize - 28, 24, logoSize, logoSize);
       }
-    } catch (e) {
-      // Fallback limpio si CORS restringe el logo externo
-    }
+    } catch (e) {}
 
     const a = document.createElement('a');
     a.href = out.toDataURL('image/png');
-    a.download = `RCL_Analisis_${formatTimeShort(video.currentTime).replace(':', 'm')}s.png`;
+    a.download = `RCL_Video_Analisis_${formatTimeShort(video.currentTime).replace(':', 'm')}s.png`;
     a.click();
-    notify('Captura HD de RCL Video Análisis descargada.', 'success');
+    notify('Captura Full HD de RCL Video Análisis descargada.', 'success');
   });
 
   // ============================================================================
-  // 10. TAGGING, PLAYLISTS Y GESTIÓN DE CLIPS
+  // 10. TAGGING, INTEGRACIÓN DE PIZARRA EN CLIP Y GESTIÓN DE PLAYLIST
   // ============================================================================
   const btnHome = document.getElementById('btn-team-home');
   const btnAway = document.getElementById('btn-team-away');
@@ -1317,6 +1338,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       category: tag.category,
       team: state.activeTeam,
       timestamp: +now.toFixed(2),
+      drawTimestamp: +now.toFixed(2),
       start,
       end,
       note: '',
@@ -1326,6 +1348,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     };
 
     state.clips.unshift(clip);
+    state.selectedClipId = clip.id;
     await persistState();
 
     const btnEl = document.getElementById(`tag-btn-${tag.id}`);
@@ -1336,7 +1359,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     renderClipsList();
     renderTimeline();
-    notify(`Clip añadido: ${tag.name} (${formatTimeShort(start)} - ${formatTimeShort(end)})`, 'success');
+    notify(`Clip creado: ${tag.name} (${formatTimeShort(start)} - ${formatTimeShort(end)})`, 'success');
   }
 
   function getFilteredClips() {
@@ -1370,7 +1393,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       listEl.innerHTML = `
         <div class="h-44 flex flex-col items-center justify-center text-center text-slate-500">
           <p class="text-xs font-medium">Sin clips en la lista actual</p>
-          <p class="text-[11px] text-slate-600 mt-0.5">Usa la botonera o los atajos de teclado para registrar acciones</p>
+          <p class="text-[11px] text-slate-600 mt-0.5">Etiqueta primero los clips y luego haz clic en cualquiera para añadirle su pizarra</p>
         </div>
       `;
       return;
@@ -1379,20 +1402,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     filtered.forEach(clip => {
       const meta = CATEGORY_META[clip.category] || CATEGORY_META['Ataque'];
       const hasDrawing = clip.fabricJson && clip.fabricJson.objects && clip.fabricJson.objects.length > 0;
+      const isSelected = clip.id === state.selectedClipId;
 
       const item = document.createElement('div');
-      item.className = 'bg-[#0f172a] border border-slate-800 hover:border-emerald-500/50 rounded-lg p-2 flex items-center gap-2.5 transition cursor-pointer group';
+      item.className = `bg-[#0f172a] border border-slate-800 hover:border-emerald-500/50 rounded-lg p-2 flex items-center gap-2.5 transition cursor-pointer group ${isSelected ? 'clip-card-active' : ''}`;
       item.innerHTML = `
-        <!-- Checkbox para incluir en Playlist / Exportación de Vídeo -->
-        <input type="checkbox" data-act="check" ${clip.selected !== false ? 'checked' : ''} class="accent-emerald-500 rounded cursor-pointer shrink-0" title="Incluir en la lista de reproducción y exportación de vídeo" />
+        <!-- Checkbox para Playlist / Exportación -->
+        <input type="checkbox" data-act="check" ${clip.selected !== false ? 'checked' : ''} class="accent-emerald-500 rounded cursor-pointer shrink-0" title="Incluir en la exportación MP4" />
 
         <!-- Miniatura -->
         <div class="w-24 h-14 rounded bg-black border border-slate-800 overflow-hidden relative shrink-0">
           ${clip.thumbnail ? `<img src="${clip.thumbnail}" class="w-full h-full object-cover" alt="clip" />` : ''}
           <span class="absolute bottom-0.5 right-0.5 bg-black/80 text-[9px] font-mono px-1 rounded text-emerald-400">
-            ${formatTimeShort(clip.timestamp)}
+            ${formatTimeShort(clip.start)}-${formatTimeShort(clip.end)}
           </span>
-          ${hasDrawing ? `<span class="absolute top-0.5 left-0.5 bg-amber-500 text-slate-950 text-[8px] font-bold px-1 rounded">PIZARRA</span>` : ''}
+          ${hasDrawing ? `<span class="absolute top-0.5 left-0.5 bg-amber-500 text-slate-950 text-[8px] font-extrabold px-1 rounded shadow" title="Pizarra integrada en ${formatTimeShort(clip.drawTimestamp || clip.timestamp)}">PIZARRA</span>` : ''}
         </div>
 
         <!-- Detalles -->
@@ -1402,13 +1426,17 @@ document.addEventListener('DOMContentLoaded', async () => {
               <div class="flex items-center gap-1.5">
                 <span class="text-[9px] font-bold uppercase px-1.5 py-0.2 rounded border ${meta.badge}">${clip.category}</span>
                 <span class="text-[10px] font-semibold ${clip.team === 'Local' ? 'text-emerald-400' : 'text-sky-400'}">${clip.team}</span>
+                ${isSelected ? `<span class="text-[8px] bg-emerald-500 text-slate-950 font-bold px-1 rounded">ACTIVO</span>` : ''}
               </div>
               <h4 class="text-xs font-bold text-white truncate mt-0.5">${clip.label}</h4>
             </div>
 
             <div class="flex items-center gap-1 shrink-0">
-              <button data-act="edit" class="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white text-xs" title="Editar clip">
-                <i data-lucide="pencil" class="w-3 h-3"></i>
+              <button data-act="draw-here" class="p-1 rounded hover:bg-emerald-500/20 text-slate-400 hover:text-emerald-400 text-xs" title="Ir al momento de la pizarra de este clip para dibujarla o editarla">
+                <i data-lucide="pen-tool" class="w-3 h-3"></i>
+              </button>
+              <button data-act="edit" class="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white text-xs" title="Editar tiempos o nota del clip">
+                <i data-lucide="sliders-horizontal" class="w-3 h-3"></i>
               </button>
               <button data-act="del" class="p-1 rounded hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 text-xs" title="Eliminar clip">
                 <i data-lucide="trash-2" class="w-3 h-3"></i>
@@ -1419,8 +1447,8 @@ document.addEventListener('DOMContentLoaded', async () => {
           ${clip.note ? `<p class="text-[10px] text-slate-400 truncate italic">"${clip.note}"</p>` : ''}
 
           <div class="flex items-center justify-between text-[10px] font-mono text-slate-400 mt-0.5">
-            <span>${formatTimePrecise(clip.start)} → ${formatTimePrecise(clip.end)}</span>
-            <span class="text-emerald-400 group-hover:underline font-sans font-semibold text-[10px]">Reproducir ▶</span>
+            <span>${hasDrawing ? `Pizarra en ${formatTimePrecise(clip.drawTimestamp || clip.timestamp)}` : `Duración: ${(clip.end - clip.start).toFixed(1)}s`}</span>
+            <span class="text-emerald-400 group-hover:underline font-sans font-semibold text-[10px]">Ver Clip ▶</span>
           </div>
         </div>
       `;
@@ -1431,10 +1459,17 @@ document.addEventListener('DOMContentLoaded', async () => {
         await persistState();
       });
 
+      // Clic en la tarjeta: selecciona este clip y lo reproduce desde su inicio (mostrando su pizarra cuando llegue al segundo de la pizarra)
       item.addEventListener('click', (e) => {
         if (e.target.closest('button') || e.target.closest('input')) return;
         state.isPlayingPlaylist = false;
-        playClipAndLoadVectors(clip, false);
+        playClip(clip, false);
+      });
+
+      // Botón rápido de pluma: salta directamente al fotograma clave del clip en pausa para dibujar o editar su pizarra sin duplicarlo
+      item.querySelector('[data-act="draw-here"]').addEventListener('click', (e) => {
+        e.stopPropagation();
+        selectClipForDrawing(clip);
       });
 
       item.querySelector('[data-act="edit"]').addEventListener('click', (e) => {
@@ -1444,6 +1479,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       item.querySelector('[data-act="del"]').addEventListener('click', async (e) => {
         e.stopPropagation();
+        if (state.selectedClipId === clip.id) state.selectedClipId = null;
         state.clips = state.clips.filter(c => c.id !== clip.id);
         await persistState();
         renderClipsList();
@@ -1456,61 +1492,80 @@ document.addEventListener('DOMContentLoaded', async () => {
     lucide.createIcons();
   }
 
-  function playClipAndLoadVectors(clip, isPlaylistMode = false) {
-    const hasDrawing = clip.fabricJson && clip.fabricJson.objects && clip.fabricJson.objects.length > 0;
-
-    if (hasDrawing) {
-      fabricCanvas.loadFromJSON(clip.fabricJson, () => {
-        // Si contiene polígonos o zonas con trama rayada, restaurar el patrón dinámico
-        fabricCanvas.getObjects().forEach(obj => {
-          if (obj.tacticalType === 'zone' && state.drawing.useHatchPattern) {
-            obj.set('fill', createDiagonalHatchPattern(obj.customColor || obj.stroke || '#10b981'));
-          }
-        });
-        fabricCanvas.renderAll();
-      });
-    } else if (document.getElementById('chk-autoclear').checked) {
+  function loadVectorsIntoCanvas(json, callback) {
+    if (!json || !json.objects || json.objects.length === 0) {
       clearFabricCanvas();
+      if (callback) callback(fabricCanvas);
+      return;
+    }
+    fabricCanvas.loadFromJSON(json, () => {
+      fabricCanvas.getObjects().forEach(obj => {
+        if (obj.tacticalType === 'zone' && state.drawing.useHatchPattern) {
+          obj.set('fill', createDiagonalHatchPattern(obj.customColor || obj.stroke || '#10b981'));
+        }
+      });
+      fabricCanvas.renderAll();
+      if (callback) callback(fabricCanvas);
+    });
+  }
+
+  function selectClipForDrawing(clip) {
+    state.selectedClipId = clip.id;
+    state.activeClip = clip;
+    state.hasShownClipDrawing = true;
+    renderClipsList();
+
+    document.getElementById('active-clip-text').textContent = `EDITANDO PIZARRA: ${clip.label} (${clip.team})`;
+    document.getElementById('active-clip-indicator').classList.remove('hidden');
+
+    if (state.videoLoaded) {
+      video.pause();
+      video.currentTime = clip.drawTimestamp !== undefined ? clip.drawTimestamp : clip.timestamp;
     }
 
+    loadVectorsIntoCanvas(clip.fabricJson);
+    notify(`Clip "${clip.label}" activo. Dibuja en pantalla y pulsa "Guardar en Clip".`, 'info');
+  }
+
+  function playClip(clip, isPlaylistMode = false) {
+    state.selectedClipId = clip.id;
+    state.activeClip = clip;
+    state.hasShownClipDrawing = false;
+    renderClipsList();
+
+    clearFabricCanvas();
+
     if (!state.videoLoaded) {
-      notify('Pizarra cargada. Selecciona el vídeo del partido para reproducir el clip.', 'info');
+      loadVectorsIntoCanvas(clip.fabricJson);
+      notify('Pizarra cargada. Carga el vídeo del partido para reproducir el clip.', 'info');
       return;
     }
 
-    state.activeClip = clip;
-    const prefix = isPlaylistMode ? '[PLAYLIST] ' : '';
+    const prefix = isPlaylistMode ? '[LISTA] ' : '';
     document.getElementById('active-clip-text').textContent = `${prefix}${clip.label} (${clip.team}) • ${formatTimeShort(clip.start)} - ${formatTimeShort(clip.end)}`;
     document.getElementById('active-clip-indicator').classList.remove('hidden');
 
-    if (hasDrawing && !isPlaylistMode) {
-      video.pause();
-      video.currentTime = clip.timestamp;
-    } else {
-      video.currentTime = clip.start;
-      video.play();
-    }
+    video.currentTime = clip.start;
+    video.play();
   }
 
-  // Reproducir Playlist Continua (Todos los clips filtrados/seleccionados seguidos)
   document.getElementById('btn-play-playlist').addEventListener('click', () => {
     if (!state.videoLoaded) {
       notify('Carga primero un archivo de vídeo local.', 'warning');
       return;
     }
-    const list = [...getActivePlaylistClips()].reverse(); // Orden cronológico de partido
+    const list = [...getActivePlaylistClips()].reverse();
     if (list.length === 0) {
-      notify('No hay clips seleccionados en la lista de reproducción.', 'warning');
+      notify('No hay clips seleccionados en la lista.', 'warning');
       return;
     }
     state.isPlayingPlaylist = true;
     const first = list.shift();
     state.playlistQueue = list;
-    playClipAndLoadVectors(first, true);
-    notify(`Reproduciendo Playlist (${list.length + 1} clips)...`, 'info');
+    playClip(first, true);
+    notify(`Reproduciendo Lista (${list.length + 1} clips)...`, 'info');
   });
 
-  // Seleccionar / Deseleccionar todos los clips
   document.getElementById('chk-select-all-clips').addEventListener('change', async (e) => {
     const checked = e.target.checked;
     getFilteredClips().forEach(c => { c.selected = checked; });
@@ -1518,11 +1573,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     renderClipsList();
   });
 
-  // Exportar Playlist filtrada/seleccionada como JSON independiente
   document.getElementById('btn-export-playlist-json').addEventListener('click', () => {
     const list = getActivePlaylistClips();
     if (list.length === 0) {
-      notify('No hay clips en la lista actual para exportar.', 'warning');
+      notify('No hay clips seleccionados para exportar.', 'warning');
       return;
     }
     const payload = {
@@ -1538,23 +1592,23 @@ document.addEventListener('DOMContentLoaded', async () => {
     a.href = URL.createObjectURL(blob);
     a.download = `RCL_Playlist_${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
-    notify(`Lista de reproducción exportada (${list.length} clips).`, 'success');
+    notify(`Lista exportada (${list.length} clips).`, 'success');
   });
 
   // ============================================================================
-  // 11. EXPORTADOR DE VÍDEO DE CLIPS UNIDOS (PLAYLIST / TODOS JUNTOS)
+  // 11. MOTOR DE EXPORTACIÓN DE VÍDEO EN .MP4 (ALTA CALIDAD + VECTORES HD)
   // ============================================================================
   const modalVideoExport = document.getElementById('modal-video-export');
   let cancelExportFlag = false;
 
   document.getElementById('btn-export-merged-video').addEventListener('click', () => {
     if (!state.videoLoaded) {
-      notify('Carga primero el vídeo del partido para poder exportar los clips en vídeo.', 'warning');
+      notify('Carga primero el vídeo del partido para exportar los clips en MP4.', 'warning');
       return;
     }
     const clipsToExport = getActivePlaylistClips();
     if (clipsToExport.length === 0) {
-      notify('No hay clips registrados o seleccionados para exportar en vídeo.', 'warning');
+      notify('No hay clips seleccionados para exportar.', 'warning');
       return;
     }
     document.getElementById('export-progress-box').classList.add('hidden');
@@ -1581,32 +1635,86 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
-  function loadFabricJsonAsync(json) {
+  /**
+   * Detecta el mejor códec MP4 / H.264 soportado por el navegador para garantizar máxima calidad y archivo .mp4
+   */
+  function getBestMp4MimeType() {
+    const candidates = [
+      'video/mp4;codecs=avc1.64002A,mp4a.40.2', // H.264 High Profile 1080p MP4
+      'video/mp4;codecs=avc1.42E01E,mp4a.40.2', // H.264 Baseline MP4
+      'video/mp4;codecs=avc1',
+      'video/mp4;codecs=h264',
+      'video/mp4',
+      'video/webm;codecs=h264',
+      'video/webm;codecs=vp9',
+      'video/webm'
+    ];
+    for (const type of candidates) {
+      if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(type)) {
+        return type;
+      }
+    }
+    return '';
+  }
+
+  /**
+   * Renderiza el JSON de Fabric.js en un StaticCanvas independiente a la resolución exacta de exportación (1080p/720p)
+   * evitando cualquier pixelación o borrosidad.
+   */
+  function renderHighResVectorsOffscreen(fabricJson, targetW, targetH) {
     return new Promise((resolve) => {
-      if (!json || !json.objects || json.objects.length === 0) {
-        clearFabricCanvas();
-        resolve();
+      if (!fabricJson || !fabricJson.objects || fabricJson.objects.length === 0) {
+        resolve(null);
         return;
       }
-      fabricCanvas.loadFromJSON(json, () => {
-        fabricCanvas.getObjects().forEach(obj => {
+      const tempCanvasEl = document.createElement('canvas');
+      tempCanvasEl.width = targetW;
+      tempCanvasEl.height = targetH;
+
+      const staticFabric = new fabric.StaticCanvas(tempCanvasEl, {
+        width: targetW,
+        height: targetH
+      });
+
+      const scaleFactor = targetW / BASE_W;
+      staticFabric.setZoom(scaleFactor);
+
+      staticFabric.loadFromJSON(fabricJson, () => {
+        staticFabric.getObjects().forEach(obj => {
           if (obj.tacticalType === 'zone' && state.drawing.useHatchPattern) {
             obj.set('fill', createDiagonalHatchPattern(obj.customColor || obj.stroke || '#10b981'));
           }
         });
-        fabricCanvas.renderAll();
-        resolve();
+        staticFabric.renderAll();
+        resolve(staticFabric.lowerCanvasEl);
       });
     });
   }
 
   document.getElementById('btn-start-video-export').addEventListener('click', async () => {
-    const clips = [...getActivePlaylistClips()].reverse(); // Orden cronológico
+    const clips = [...getActivePlaylistClips()].reverse();
     if (clips.length === 0) return;
 
     cancelExportFlag = false;
+    const qualityProfile = document.getElementById('select-export-quality').value;
     const pauseOnDrawings = document.getElementById('chk-export-pause-drawings').checked;
+    const freezeDurationMs = parseInt(document.getElementById('select-freeze-duration').value, 10) || 3000;
     const showLowerThird = document.getElementById('chk-export-overlay-title').checked;
+
+    // Configurar resolución y bitrate óptimo para mantener máxima nitidez con peso contenido
+    let exportW = 1920;
+    let exportH = 1080;
+    let targetBitrate = 8000000; // 8 Mbps para 1080p
+
+    if (qualityProfile === '720p') {
+      exportW = 1280;
+      exportH = 720;
+      targetBitrate = 4500000; // 4.5 Mbps para 720p
+    } else if (qualityProfile === 'native' && video.videoWidth && video.videoHeight) {
+      exportW = video.videoWidth;
+      exportH = video.videoHeight;
+      targetBitrate = 6500000;
+    }
 
     const progressBox = document.getElementById('export-progress-box');
     const progressStatus = document.getElementById('export-progress-status');
@@ -1617,22 +1725,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     progressBox.classList.remove('hidden');
     startBtn.disabled = true;
 
-    // Lienzo maestro de grabación HD (1280x720 a 30fps)
     const recCanvas = document.createElement('canvas');
-    recCanvas.width = 1280;
-    recCanvas.height = 720;
-    const rCtx = recCanvas.getContext('2d');
+    recCanvas.width = exportW;
+    recCanvas.height = exportH;
+    const rCtx = recCanvas.getContext('2d', { alpha: false });
+    rCtx.imageSmoothingEnabled = true;
+    rCtx.imageSmoothingQuality = 'high';
 
     const stream = recCanvas.captureStream(30);
-    const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
-      ? 'video/webm;codecs=vp9'
-      : 'video/webm';
+    const mimeType = getBestMp4MimeType();
 
-    const recorder = new MediaRecorder(stream, {
-      mimeType,
-      videoBitsPerSecond: 6000000 // 6 Mbps calidad profesional
-    });
+    const recorderOptions = { videoBitsPerSecond: targetBitrate };
+    if (mimeType) recorderOptions.mimeType = mimeType;
 
+    const recorder = new MediaRecorder(stream, recorderOptions);
     const recordedChunks = [];
     recorder.ondataavailable = (e) => {
       if (e.data && e.data.size > 0) recordedChunks.push(e.data);
@@ -1642,33 +1748,40 @@ document.addEventListener('DOMContentLoaded', async () => {
       recorder.onstop = () => resolve();
     });
 
-    const drawCompositeFrame = (clip, includeVectors = false) => {
-      rCtx.fillStyle = '#000000';
-      rCtx.fillRect(0, 0, recCanvas.width, recCanvas.height);
-      rCtx.drawImage(video, 0, 0, recCanvas.width, recCanvas.height);
+    const scaleUI = exportH / 720;
 
-      if (includeVectors && fabricCanvas.lowerCanvasEl) {
-        rCtx.drawImage(fabricCanvas.lowerCanvasEl, 0, 0, recCanvas.width, recCanvas.height);
+    const drawCompositeFrame = (clip, highResVectorCanvas = null) => {
+      rCtx.fillStyle = '#000000';
+      rCtx.fillRect(0, 0, exportW, exportH);
+      rCtx.drawImage(video, 0, 0, exportW, exportH);
+
+      if (highResVectorCanvas) {
+        rCtx.drawImage(highResVectorCanvas, 0, 0, exportW, exportH);
       }
 
       if (showLowerThird) {
-        // Rótulo de televisión (Lower-Third) de RCL Video Análisis
+        const boxX = Math.round(28 * scaleUI);
+        const boxY = Math.round(exportH - 74 * scaleUI);
+        const boxW = Math.round(500 * scaleUI);
+        const boxH = Math.round(48 * scaleUI);
+
         rCtx.fillStyle = 'rgba(10, 15, 29, 0.88)';
-        rCtx.fillRect(32, recCanvas.height - 76, 520, 48);
+        rCtx.fillRect(boxX, boxY, boxW, boxH);
         rCtx.fillStyle = '#10b981';
-        rCtx.fillRect(32, recCanvas.height - 76, 6, 48);
+        rCtx.fillRect(boxX, boxY, Math.round(6 * scaleUI), boxH);
 
-        rCtx.font = 'bold 18px Inter, sans-serif';
+        rCtx.font = `bold ${Math.round(17 * scaleUI)}px Inter, sans-serif`;
         rCtx.fillStyle = '#ffffff';
-        rCtx.fillText(`${clip.label.toUpperCase()} (${clip.team})`, 52, recCanvas.height - 52);
+        rCtx.fillText(`${clip.label.toUpperCase()} (${clip.team})`, boxX + Math.round(18 * scaleUI), boxY + Math.round(23 * scaleUI));
 
-        rCtx.font = '12px JetBrains Mono, monospace';
+        rCtx.font = `${Math.round(11.5 * scaleUI)}px JetBrains Mono, monospace`;
         rCtx.fillStyle = '#94a3b8';
-        rCtx.fillText(`RCL VIDEO ANÁLISIS • ${formatTimeShort(clip.start)} - ${formatTimeShort(clip.end)}`, 52, recCanvas.height - 35);
+        rCtx.fillText(`RCL VIDEO ANÁLISIS • ${formatTimeShort(clip.start)} - ${formatTimeShort(clip.end)}`, boxX + Math.round(18 * scaleUI), boxY + Math.round(40 * scaleUI));
 
         try {
           if (rclLogoImg.complete && rclLogoImg.naturalWidth > 0) {
-            rCtx.drawImage(rclLogoImg, recCanvas.width - 78, 22, 54, 54);
+            const logoSz = Math.round(54 * scaleUI);
+            rCtx.drawImage(rclLogoImg, exportW - logoSz - Math.round(24 * scaleUI), Math.round(20 * scaleUI), logoSz, logoSz);
           }
         } catch (err) {}
       }
@@ -1682,34 +1795,39 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       const clip = clips[i];
       const hasVectors = clip.fabricJson && clip.fabricJson.objects && clip.fabricJson.objects.length > 0;
-      progressStatus.textContent = `Grabando clip ${i + 1} de ${clips.length}: ${clip.label}`;
+      const drawTargetSec = clip.drawTimestamp !== undefined ? clip.drawTimestamp : clip.timestamp;
+
+      progressStatus.textContent = `Renderizando clip ${i + 1}/${clips.length}: ${clip.label}`;
       const pct = Math.round((i / clips.length) * 100);
       progressPct.textContent = `${pct}%`;
       progressBar.style.width = `${pct}%`;
 
-      await loadFabricJsonAsync(hasVectors ? clip.fabricJson : null);
+      // Pre-renderizar la pizarra vectorial del clip a resolución Full HD/HD nativa
+      const hiResVectorLayer = hasVectors
+        ? await renderHighResVectorsOffscreen(clip.fabricJson, exportW, exportH)
+        : null;
+
       await waitVideoSeek(clip.start);
 
       let pausedForDrawing = false;
       await video.play();
 
       await new Promise((resolveClip) => {
-        const stepFrame = async () => {
+        const stepFrame = () => {
           if (cancelExportFlag) {
             video.pause();
             resolveClip();
             return;
           }
 
-          // Si el clip tiene pizarra táctica y llegamos al timestamp clave, congelar durante 2.5s mostrando los vectores
-          if (pauseOnDrawings && hasVectors && !pausedForDrawing && video.currentTime >= clip.timestamp) {
+          if (pauseOnDrawings && hiResVectorLayer && !pausedForDrawing && video.currentTime >= drawTargetSec) {
             pausedForDrawing = true;
             video.pause();
             const freezeStart = performance.now();
             const freezeLoop = () => {
               if (cancelExportFlag) { resolveClip(); return; }
-              drawCompositeFrame(clip, true);
-              if (performance.now() - freezeStart < 2500) {
+              drawCompositeFrame(clip, hiResVectorLayer);
+              if (performance.now() - freezeStart < freezeDurationMs) {
                 requestAnimationFrame(freezeLoop);
               } else {
                 video.play();
@@ -1720,7 +1838,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             return;
           }
 
-          drawCompositeFrame(clip, !pauseOnDrawings && hasVectors);
+          drawCompositeFrame(clip, (!pauseOnDrawings && hiResVectorLayer) ? hiResVectorLayer : null);
 
           if (video.currentTime >= clip.end || video.ended) {
             video.pause();
@@ -1740,15 +1858,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!cancelExportFlag && recordedChunks.length > 0) {
       progressPct.textContent = '100%';
       progressBar.style.width = '100%';
-      progressStatus.textContent = '¡Vídeo compilado listo!';
+      progressStatus.textContent = '¡Archivo MP4 generado con éxito!';
 
-      const blob = new Blob(recordedChunks, { type: mimeType });
+      const blob = new Blob(recordedChunks, { type: 'video/mp4' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `RCL_Video_Analisis_Playlist_${new Date().toISOString().slice(0, 10)}.webm`;
+      a.download = `RCL_Video_Analisis_${new Date().toISOString().slice(0, 10)}.mp4`;
       a.click();
-      notify('Vídeo unido de todos los clips descargado con éxito.', 'success');
+      notify('Vídeo .MP4 en alta calidad descargado correctamente.', 'success');
       setTimeout(() => modalVideoExport.classList.add('hidden'), 800);
     }
 
@@ -1779,12 +1897,15 @@ document.addEventListener('DOMContentLoaded', async () => {
       marker.style.left = `${leftPct}%`;
       marker.style.width = `${widthPct}%`;
       marker.style.backgroundColor = meta.color;
+      if (clip.id === state.selectedClipId) {
+        marker.style.outline = '2px solid #ffffff';
+      }
       marker.title = `${clip.label} (${clip.team}) | ${formatTimeShort(clip.start)} - ${formatTimeShort(clip.end)}`;
 
       marker.addEventListener('click', (e) => {
         e.stopPropagation();
         state.isPlayingPlaylist = false;
-        playClipAndLoadVectors(clip, false);
+        playClip(clip, false);
       });
 
       track.appendChild(marker);
@@ -1795,9 +1916,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!state.videoLoaded || !video.duration) return;
     const rect = timelineArea.getBoundingClientRect();
     const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-    state.activeClip = null;
-    state.isPlayingPlaylist = false;
-    document.getElementById('active-clip-indicator').classList.add('hidden');
     video.currentTime = pct * video.duration;
   });
 
@@ -1808,6 +1926,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (state.clips.length === 0) return;
     if (confirm('¿Eliminar todos los clips registrados del proyecto actual?')) {
       state.clips = [];
+      state.selectedClipId = null;
       await persistState();
       renderClipsList();
       renderTimeline();
@@ -1834,16 +1953,18 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('btn-close-edit-modal').addEventListener('click', closeEditModal);
   document.getElementById('btn-cancel-edit-modal').addEventListener('click', closeEditModal);
 
-  document.getElementById('btn-update-clip-vectors').addEventListener('click', async () => {
+  document.getElementById('btn-remove-clip-vectors').addEventListener('click', async () => {
     const id = document.getElementById('edit-clip-id').value;
     const idx = state.clips.findIndex(c => c.id === id);
     if (idx === -1) return;
 
-    state.clips[idx].fabricJson = fabricCanvas.toJSON(['tacticalType', 'customColor', 'customSize']);
+    state.clips[idx].fabricJson = null;
+    clearFabricCanvas();
     state.clips[idx].thumbnail = generateThumbnailBase64();
     await persistState();
     renderClipsList();
-    notify('Pizarra actual vinculada al clip.', 'success');
+    closeEditModal();
+    notify('Pizarra eliminada del clip (el clip se mantiene intacto).', 'info');
   });
 
   document.getElementById('btn-save-edit-modal').addEventListener('click', async () => {
@@ -1867,7 +1988,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     notify('Clip actualizado.', 'success');
   });
 
-  // Modal Nuevo Botón de Etiquetado
   const modalNewTag = document.getElementById('modal-new-tag');
   document.getElementById('btn-open-new-tag').addEventListener('click', () => {
     document.getElementById('input-tag-name').value = '';
@@ -1896,15 +2016,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     notify(`Botón "${name}" [${key}] añadido.`, 'success');
   });
 
-  // Exportar JSON Completo
   document.getElementById('btn-export-json').addEventListener('click', () => {
     const payload = {
       suite: 'RCL Video Análisis',
       organization: 'RCL Scout Group',
       exportedAt: new Date().toISOString(),
       tags: state.tags,
-      clips: state.clips,
-      activeCanvasVectors: fabricCanvas.toJSON(['tacticalType', 'customColor', 'customSize'])
+      clips: state.clips
     };
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
     const a = document.createElement('a');
@@ -1914,7 +2032,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     notify('Proyecto JSON exportado.', 'success');
   });
 
-  // Importar JSON
   document.getElementById('input-import-json').addEventListener('change', (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -1936,7 +2053,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     reader.readAsText(file);
   });
 
-  // Exportar CSV
   document.getElementById('btn-export-csv').addEventListener('click', () => {
     const list = getActivePlaylistClips();
     if (list.length === 0) {
@@ -1949,9 +2065,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       'Categoria',
       'Etiqueta',
       'Equipo',
-      'Timestamp_Seg',
       'Inicio_Seg',
       'Fin_Seg',
+      'Segundo_Pizarra',
       'Duracion_Seg',
       'Inicio_MMSS',
       'Fin_MMSS',
@@ -1964,9 +2080,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       `"${c.category}"`,
       `"${c.label.replace(/"/g, '""')}"`,
       `"${c.team}"`,
-      c.timestamp,
       c.start,
       c.end,
+      c.drawTimestamp || c.timestamp,
       (c.end - c.start).toFixed(2),
       formatTimePrecise(c.start),
       formatTimePrecise(c.end),
@@ -1980,7 +2096,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     a.href = URL.createObjectURL(blob);
     a.download = `RCL_Informe_Eventos_${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
-    notify('Informe CSV de RCL Video Análisis exportado.', 'success');
+    notify('Informe CSV exportado.', 'success');
   });
 
   // ============================================================================
@@ -1990,7 +2106,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     const activeTag = document.activeElement ? document.activeElement.tagName.toLowerCase() : '';
     if (activeTag === 'input' || activeTag === 'textarea' || activeTag === 'select') return;
 
-    // Enter o Escape cierra una cadena de Enlace LongoMatch o un Polígono activo
     if (e.key === 'Enter' || e.key === 'Escape') {
       if (state.drawing.tool === 'chain-link' || state.drawing.tool === 'polygon-zone') {
         e.preventDefault();
@@ -1999,14 +2114,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     }
 
-    // Tecla 'V' vuelve rápido a la herramienta Cursor
-    if (e.key.toLowerCase() === 'v' && !e.ctrlKey && !e.metaKey) {
-      // Si 'V' está asignada a un tag, solo cambiar a cursor si hay objetos en pizarra y el vídeo está en pausa
-      if (video.paused && (state.drawing.tool === 'chain-link' || state.drawing.tool === 'polygon-zone')) {
-        e.preventDefault();
-        setActiveTool('select');
-        return;
-      }
+    // Ctrl+S guarda rápidamente la pizarra dentro del clip activo
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+      e.preventDefault();
+      document.getElementById('btn-save-drawing-clip').click();
+      return;
     }
 
     if (e.key === 'Delete' || e.key === 'Backspace') {
