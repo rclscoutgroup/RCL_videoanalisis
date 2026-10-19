@@ -5,6 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>RCL Video Análisis | Suite Profesional de Videoanálisis Táctico</title>
 
+  <!-- Favicon en la pestaña del navegador con el Logo Oficial de RCL -->
+  <link rel="icon" type="image/png" href="https://raw.githubusercontent.com/rclscoutgroup/portal-scouting/main/RCL_Scout_Logo2.png" />
+  <link rel="apple-touch-icon" href="https://raw.githubusercontent.com/rclscoutgroup/portal-scouting/main/RCL_Scout_Logo2.png" />
+
   <!-- Tailwind CSS vía CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
@@ -43,17 +47,17 @@
 </head>
 <body class="bg-[#0f172a] text-slate-100 h-screen w-screen overflow-hidden flex flex-col select-none font-sans">
 
-  <!-- ================= HEADER SUPERIOR (BRANDING RCL VIDEO ANÁLISIS) ================= -->
+  <!-- ================= HEADER SUPERIOR (RCL VIDEO ANÁLISIS) ================= -->
   <header class="h-14 bg-[#0a0f1d] border-b border-slate-800 px-4 flex items-center justify-between shrink-0 z-30">
-    <!-- Logo RCL + Título + Carga de Vídeo -->
+    <!-- Logo RCL Visible + Título + Carga de Vídeo -->
     <div class="flex items-center gap-3">
       <div class="flex items-center gap-2.5">
         <img 
           id="rcl-brand-logo"
-          src="https://github.com/rclscoutgroup/portal-scouting/blob/main/RCL_Scout_Logo2.png?raw=true" 
-          alt="RCL Scout Group Logo" 
-          crossorigin="anonymous"
-          class="w-9 h-9 object-contain rounded-lg bg-slate-900 p-0.5 border border-emerald-500/40 shadow-md"
+          src="https://raw.githubusercontent.com/rclscoutgroup/portal-scouting/main/RCL_Scout_Logo2.png" 
+          onerror="this.onerror=null; this.src='https://github.com/rclscoutgroup/portal-scouting/blob/main/RCL_Scout_Logo2.png?raw=true';"
+          alt="RCL Video Análisis" 
+          class="w-10 h-10 object-contain rounded-lg bg-slate-900 p-0.5 border border-emerald-500/40 shadow-md shrink-0"
         />
         <div>
           <div class="flex items-center gap-2">
@@ -62,7 +66,7 @@
           </div>
           <div class="flex items-center gap-1.5 text-[10px] text-slate-400">
             <span id="db-status-dot" class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-            <span id="db-status-text" class="font-mono">RCL Scout Group • IndexedDB Activo</span>
+            <span id="db-status-text" class="font-mono">RCL Scout Group • Guardado Automático</span>
           </div>
         </div>
       </div>
@@ -101,16 +105,16 @@
       </div>
     </div>
 
-    <!-- Acciones de Exportación (Captura, Vídeo Unido, JSON, CSV) -->
+    <!-- Acciones de Exportación (Captura PNG, Vídeo MP4, JSON, CSV) -->
     <div class="flex items-center gap-2">
-      <button id="btn-snapshot-png" class="bg-[#1e293b] hover:bg-slate-700 text-slate-200 border border-slate-700 px-2.5 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition" title="Descargar fotograma HD con pizarra y marca de agua RCL">
+      <button id="btn-snapshot-png" class="bg-[#1e293b] hover:bg-slate-700 text-slate-200 border border-slate-700 px-2.5 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition" title="Descargar fotograma Full HD con pizarra y logo RCL">
         <i data-lucide="camera" class="w-3.5 h-3.5 text-sky-400"></i>
         <span class="hidden xl:inline">Captura PNG</span>
       </button>
 
-      <button id="btn-export-merged-video" class="bg-amber-500 hover:bg-amber-400 text-slate-950 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-md transition" title="Unir y exportar en vídeo todos los clips de la playlist actual">
-        <i data-lucide="clapperboard" class="w-3.5 h-3.5"></i>
-        <span>Exportar Vídeo Clips</span>
+      <button id="btn-export-merged-video" class="bg-amber-500 hover:bg-amber-400 text-slate-950 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-md transition" title="Exportar clips unidos en archivo MP4 de alta calidad">
+        <i data-lucide="film" class="w-3.5 h-3.5"></i>
+        <span>Exportar MP4</span>
       </button>
 
       <label for="input-import-json" class="cursor-pointer bg-[#1e293b] hover:bg-slate-700 text-slate-200 border border-slate-700 px-2.5 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition" title="Importar proyecto o playlist JSON">
@@ -137,7 +141,7 @@
     <main class="flex-1 flex flex-col bg-[#060913] border-r border-slate-800 relative overflow-hidden">
 
       <!-- BARRA DE HERRAMIENTAS TÁCTICAS FLOTANTE -->
-      <div class="absolute top-3 left-1/2 -translate-x-1/2 z-20 flex flex-wrap items-center justify-center gap-1.5 bg-[#0f172a]/95 backdrop-blur-md border border-slate-700/90 rounded-xl px-3 py-1.5 shadow-2xl max-w-[96%]">
+      <div class="absolute top-3 left-1/2 -translate-x-1/2 z-20 flex flex-wrap items-center justify-center gap-1.5 bg-[#0f172a]/95 backdrop-blur-md border border-slate-700/90 rounded-xl px-3 py-1.5 shadow-2xl max-w-[98%]">
         
         <!-- Grupo 1: Herramientas de Dibujo Táctico -->
         <div class="flex items-center gap-1">
@@ -156,7 +160,7 @@
             <span>Polígono</span>
           </button>
 
-          <button data-tool="rect-zone" class="fabric-tool-btn px-2 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1 transition" title="Rectángulo / Zona Táctica en Perspectiva (Arrastrar)">
+          <button data-tool="rect-zone" class="fabric-tool-btn px-2 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1 transition" title="Rectángulo / Zona Táctica (Arrastrar)">
             <i data-lucide="square-dashed-bottom" class="w-3.5 h-3.5 text-sky-400"></i>
             <span>Rectángulo</span>
           </button>
@@ -189,7 +193,7 @@
 
         <div class="h-5 w-px bg-slate-700 mx-0.5"></div>
 
-        <!-- Selector de Estilo de Relleno para Polígonos y Rectángulos (Trama Rayada LongoMatch vs Sólido) -->
+        <!-- Selector de Estilo de Relleno para Polígonos y Rectángulos -->
         <button id="btn-toggle-hatch" class="px-2 py-1 rounded-md bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-[11px] font-semibold flex items-center gap-1 transition" title="Alternar entre Trama Rayada Diagonal (Estilo Pro) o Relleno Translúcido en Zonas/Polígonos">
           <i data-lucide="slashes" class="w-3 h-3"></i>
           <span id="hatch-mode-label">Trama Rayada</span>
@@ -197,7 +201,7 @@
 
         <div class="h-5 w-px bg-slate-700 mx-0.5"></div>
 
-        <!-- Paleta de Colores Dinámica (Cambia el color de la herramienta o del objeto/foco ya colocado) -->
+        <!-- Paleta de Colores Dinámica -->
         <div class="flex items-center gap-1.5 px-1">
           <button data-color="#eab308" class="color-btn w-4 h-4 rounded-full bg-yellow-400 ring-2 ring-white scale-110 transition" title="Amarillo LongoMatch"></button>
           <button data-color="#ef4444" class="color-btn w-4 h-4 rounded-full bg-red-500 opacity-75 hover:opacity-100 transition" title="Rojo Táctico"></button>
@@ -207,7 +211,7 @@
           <input id="input-custom-color" type="color" value="#eab308" class="w-4 h-4 bg-transparent border-0 cursor-pointer p-0" title="Color personalizado" />
         </div>
 
-        <!-- Control Deslizante de Tamaño / Radio (Para ajustar Spotlights, Anillos y Objetos seleccionados) -->
+        <!-- Control Deslizante de Tamaño / Radio -->
         <div class="flex items-center gap-1.5 bg-[#1e293b] px-2 py-1 rounded-md border border-slate-700" title="Ajusta el radio del Spotlight o el tamaño del objeto seleccionado en tiempo real">
           <span class="text-[10px] text-slate-300 font-medium">Tamaño:</span>
           <input id="slider-object-size" type="range" min="25" max="160" value="65" class="w-16 accent-emerald-400 cursor-pointer h-1.5" />
@@ -221,9 +225,10 @@
           <i data-lucide="check" class="w-3.5 h-3.5"></i> Cerrar (Enter)
         </button>
 
-        <!-- Guardar Pizarra, Borrar Selección y Limpiar -->
-        <button id="btn-save-drawing-clip" class="px-2 py-1 rounded-md bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 border border-emerald-500/30 text-[11px] font-semibold flex items-center gap-1 transition" title="Guardar la pizarra actual como un clip táctico">
-          <i data-lucide="bookmark-plus" class="w-3.5 h-3.5"></i>
+        <!-- BOTÓN PRINCIPAL: GUARDAR PIZARRA DENTRO DEL CLIP ACTIVO (SIN DUPLICAR) -->
+        <button id="btn-save-drawing-clip" class="px-2.5 py-1 rounded-md bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold flex items-center gap-1.5 transition shadow" title="Guarda o actualiza esta pizarra dentro del clip actual sin duplicarlo">
+          <i data-lucide="save" class="w-3.5 h-3.5"></i>
+          <span>Guardar en Clip</span>
         </button>
 
         <button id="btn-delete-selected" class="p-1.5 rounded-md bg-[#1e293b] hover:bg-rose-500/20 text-slate-300 hover:text-rose-400 transition" title="Borrar objeto seleccionado (Supr / Backspace)">
@@ -238,12 +243,13 @@
       <!-- ESCENARIO DEL REPRODUCTOR + CANVAS FABRIC.JS SUPERPUESTO -->
       <div id="video-stage" class="flex-1 relative flex items-center justify-center overflow-hidden bg-black">
 
-        <!-- Zona Drag & Drop Inicial -->
+        <!-- Zona Drag & Drop Inicial con Logo Oficial RCL -->
         <div id="video-dropzone" class="absolute inset-6 border-2 border-dashed border-slate-800 hover:border-emerald-500/50 rounded-2xl flex flex-col items-center justify-center bg-[#0f172a]/90 z-10 transition cursor-pointer">
           <img 
-            src="https://github.com/rclscoutgroup/portal-scouting/blob/main/RCL_Scout_Logo2.png?raw=true" 
-            alt="RCL Logo" 
-            class="w-20 h-20 object-contain mb-3 drop-shadow-lg"
+            src="https://raw.githubusercontent.com/rclscoutgroup/portal-scouting/main/RCL_Scout_Logo2.png" 
+            onerror="this.onerror=null; this.src='https://github.com/rclscoutgroup/portal-scouting/blob/main/RCL_Scout_Logo2.png?raw=true';"
+            alt="RCL Video Análisis Logo" 
+            class="w-24 h-24 object-contain mb-3 drop-shadow-lg"
           />
           <p class="text-base font-bold text-white">RCL Video Análisis • Suite Táctica</p>
           <p class="text-xs text-slate-400 mt-1">Arrastra y suelta el vídeo del partido aquí (MP4, MOV, WebM) o haz clic para seleccionarlo</p>
@@ -257,11 +263,11 @@
           Haz clic en cada punto/jugador para añadir nodos • Pulsa <b>Enter</b> o haz <b>Doble Clic</b> para terminar
         </div>
 
-        <!-- Indicador Flotante de Reproducción de Clip / Playlist -->
+        <!-- Indicador Flotante de Clip Seleccionado / Reproducción -->
         <div id="active-clip-indicator" class="hidden absolute bottom-4 left-4 z-20 bg-[#0f172a]/95 backdrop-blur border border-emerald-500/50 rounded-lg px-3 py-1.5 flex items-center gap-2.5 shadow-xl">
           <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
-          <span id="active-clip-text" class="text-xs font-semibold text-white">Reproduciendo Clip</span>
-          <button id="btn-stop-clip" class="text-slate-400 hover:text-white text-xs bg-slate-800 px-2 py-0.5 rounded">Detener</button>
+          <span id="active-clip-text" class="text-xs font-semibold text-white">Clip Activo</span>
+          <button id="btn-stop-clip" class="text-slate-400 hover:text-white text-xs bg-slate-800 px-2 py-0.5 rounded">Salir del Clip</button>
         </div>
 
         <!-- Reproductor de Vídeo HTML5 -->
@@ -303,9 +309,9 @@
 
         <!-- Velocidades y Auto-limpieza -->
         <div class="flex items-center gap-3">
-          <label class="flex items-center gap-1.5 text-[11px] text-slate-400 cursor-pointer" title="Limpiar los gráficos automáticamente al reanudar la reproducción">
+          <label class="flex items-center gap-1.5 text-[11px] text-slate-400 cursor-pointer" title="Limpiar los gráficos de pantalla al dar Play">
             <input id="chk-autoclear" type="checkbox" checked class="accent-emerald-500 rounded" />
-            <span class="hidden md:inline">Auto-limpiar pizarra</span>
+            <span class="hidden md:inline">Auto-limpiar al reproducir</span>
           </label>
 
           <div class="h-4 w-px bg-slate-800"></div>
@@ -326,13 +332,13 @@
     </main>
 
     <!-- COLUMNA DERECHA: PANEL DE TAGGING, PLAYLIST Y CLIPS -->
-    <aside class="w-96 xl:w-[445px] bg-[#0f172a] flex flex-col shrink-0 overflow-hidden">
+    <aside class="w-96 xl:w-[450px] bg-[#0f172a] flex flex-col shrink-0 overflow-hidden">
 
-      <!-- Cabecera deBotonera -->
+      <!-- Cabecera de Botonera -->
       <div class="h-11 bg-[#0a0f1d] border-b border-slate-800 px-3 flex items-center justify-between shrink-0">
         <div class="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-200">
           <i data-lucide="layout-grid" class="w-3.5 h-3.5 text-emerald-400"></i>
-          <span>Panel de Etiquetado & Playlists</span>
+          <span>Panel de Etiquetado & Clips</span>
         </div>
         <button id="btn-open-new-tag" class="bg-[#1e293b] hover:bg-slate-700 text-emerald-400 border border-slate-700 px-2.5 py-1 rounded text-[11px] font-semibold flex items-center gap-1 transition">
           <i data-lucide="plus" class="w-3 h-3"></i> Añadir Tag
@@ -340,7 +346,7 @@
       </div>
 
       <!-- MATRIZ DE BOTONES DE ETIQUETADO RÁPIDO -->
-      <div id="tagging-matrix-container" class="h-[42%] overflow-y-auto p-3 space-y-2.5 custom-scrollbar border-b border-slate-800"></div>
+      <div id="tagging-matrix-container" class="h-[40%] overflow-y-auto p-3 space-y-2.5 custom-scrollbar border-b border-slate-800"></div>
 
       <!-- SECCIÓN DE PLAYLIST Y LISTA DE CLIPS -->
       <div class="flex-1 flex flex-col overflow-hidden bg-[#0a0f1d]/60">
@@ -349,7 +355,7 @@
           <div class="flex items-center gap-2">
             <div class="relative flex-1">
               <i data-lucide="search" class="w-3.5 h-3.5 text-slate-500 absolute left-2.5 top-2"></i>
-              <input id="input-filter-clips" type="text" placeholder="Filtrar playlist por tag, equipo o nota..." class="w-full bg-[#1e293b] border border-slate-700 rounded-md pl-8 pr-2 py-1 text-xs text-slate-200 focus:outline-none focus:border-emerald-500" />
+              <input id="input-filter-clips" type="text" placeholder="Filtrar por tag, equipo o nota..." class="w-full bg-[#1e293b] border border-slate-700 rounded-md pl-8 pr-2 py-1 text-xs text-slate-200 focus:outline-none focus:border-emerald-500" />
             </div>
 
             <select id="select-filter-category" class="bg-[#1e293b] border border-slate-700 rounded-md px-2 py-1 text-xs text-slate-200 focus:outline-none">
@@ -361,22 +367,22 @@
             </select>
           </div>
 
-          <!-- Acciones de Lista de Reproducción (Reproducir Todo, Seleccionar, Exportar Playlist) -->
+          <!-- Acciones de Lista de Reproducción -->
           <div class="flex items-center justify-between gap-1.5 pt-0.5">
             <div class="flex items-center gap-1.5">
-              <button id="btn-play-playlist" class="px-2.5 py-1 rounded bg-emerald-600/20 hover:bg-emerald-600 text-emerald-400 hover:text-white border border-emerald-500/30 text-[11px] font-semibold flex items-center gap-1 transition" title="Reproducir todos los clips seleccionados o filtrados de forma continua">
+              <button id="btn-play-playlist" class="px-2.5 py-1 rounded bg-emerald-600/20 hover:bg-emerald-600 text-emerald-400 hover:text-white border border-emerald-500/30 text-[11px] font-semibold flex items-center gap-1 transition" title="Reproducir todos los clips seleccionados de forma continua">
                 <i data-lucide="list-video" class="w-3.5 h-3.5"></i>
-                <span>Reproducir Playlist</span>
+                <span>Reproducir Lista</span>
               </button>
 
-              <button id="btn-export-playlist-json" class="px-2 py-1 rounded bg-[#1e293b] hover:bg-slate-700 text-slate-300 border border-slate-700 text-[11px] font-medium flex items-center gap-1 transition" title="Descargar solo los clips de la playlist actual (.JSON)">
+              <button id="btn-export-playlist-json" class="px-2 py-1 rounded bg-[#1e293b] hover:bg-slate-700 text-slate-300 border border-slate-700 text-[11px] font-medium flex items-center gap-1 transition" title="Exportar solo los clips seleccionados (.JSON)">
                 <i data-lucide="share-2" class="w-3 h-3 text-sky-400"></i>
                 <span>Exportar Lista</span>
               </button>
             </div>
 
             <div class="flex items-center gap-2">
-              <label class="flex items-center gap-1 text-[10px] text-slate-400 cursor-pointer" title="Seleccionar o deseleccionar todos los clips para exportar">
+              <label class="flex items-center gap-1 text-[10px] text-slate-400 cursor-pointer" title="Marcar o desmarcar todos los clips">
                 <input id="chk-select-all-clips" type="checkbox" checked class="accent-emerald-500 rounded" />
                 <span>Todos</span>
               </label>
@@ -399,6 +405,8 @@
       <div class="flex items-center gap-2">
         <i data-lucide="gantt-chart" class="w-3.5 h-3.5 text-emerald-400"></i>
         <span class="font-bold text-slate-300 uppercase tracking-wider text-[10px]">Línea de Tiempo RCL Video Análisis</span>
+        <span class="text-slate-700">|</span>
+        <span class="text-[10px] text-slate-400">Selecciona un clip, pausa el vídeo donde quieras, dibuja en la pizarra y pulsa <b>"Guardar en Clip"</b></span>
       </div>
       <div class="flex items-center gap-3 font-mono text-[10px]">
         <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-emerald-500"></span> Ataque</span>
@@ -429,12 +437,12 @@
     </div>
   </footer>
 
-  <!-- ================= MODAL: EXPORTADOR DE VÍDEO DE PLAYLIST / TODOS LOS CLIPS ================= -->
+  <!-- ================= MODAL: EXPORTADOR DE VÍDEO MP4 DE ALTA CALIDAD ================= -->
   <div id="modal-video-export" class="hidden fixed inset-0 bg-black/80 backdrop-blur-xs z-50 flex items-center justify-center p-4">
     <div class="bg-[#0f172a] border border-slate-700 rounded-xl w-full max-w-md overflow-hidden shadow-2xl">
       <div class="px-4 py-3 bg-[#0a0f1d] border-b border-slate-800 flex items-center justify-between">
         <h3 class="text-xs font-bold uppercase tracking-wider text-white flex items-center gap-2">
-          <i data-lucide="film" class="w-4 h-4 text-amber-400"></i> Exportar Vídeo Compilado (Playlist / Clips)
+          <i data-lucide="film" class="w-4 h-4 text-amber-400"></i> Exportar Vídeo MP4 (Calidad Optimizada)
         </h3>
         <button id="btn-close-video-export" class="text-slate-400 hover:text-white">
           <i data-lucide="x" class="w-4 h-4"></i>
@@ -442,24 +450,41 @@
       </div>
       <div class="p-4 space-y-3 text-xs">
         <p class="text-slate-300 leading-relaxed">
-          Se unirán todos los clips marcados en la lista de reproducción actual en un único archivo de vídeo continuo con el sello de <b>RCL Video Análisis</b>.
+          Se renderizarán todos los clips marcados en un único archivo <b>.MP4</b> con vectores reescalados en alta definición y compresión optimizada.
         </p>
 
-        <div class="bg-[#1e293b] border border-slate-700 rounded-lg p-3 space-y-2">
-          <label class="flex items-center gap-2 cursor-pointer text-slate-200 font-medium">
-            <input id="chk-export-pause-drawings" type="checkbox" checked class="accent-emerald-500 rounded" />
-            <span>Congelar 2.5s en los fotogramas con pizarra táctica</span>
-          </label>
+        <div class="space-y-2">
+          <label class="block text-slate-400 font-medium">Perfil de Calidad y Peso (MP4 H.264)</label>
+          <select id="select-export-quality" class="w-full bg-[#1e293b] border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-emerald-500">
+            <option value="1080p" selected>Full HD 1080p (1920x1080 • 8 Mbps • Nitidez Máxima)</option>
+            <option value="720p">HD 720p Optimizado (1280x720 • 4.5 Mbps • Ideal WhatsApp/Ligero)</option>
+            <option value="native">Resolución Original del Partido (6 Mbps)</option>
+          </select>
+        </div>
+
+        <div class="bg-[#1e293b] border border-slate-700 rounded-lg p-3 space-y-2.5">
+          <div class="flex items-center justify-between">
+            <label class="flex items-center gap-2 cursor-pointer text-slate-200 font-medium">
+              <input id="chk-export-pause-drawings" type="checkbox" checked class="accent-emerald-500 rounded" />
+              <span>Congelar imagen al mostrar la pizarra del clip</span>
+            </label>
+            <select id="select-freeze-duration" class="bg-[#0f172a] border border-slate-700 rounded px-2 py-0.5 text-[11px] font-mono text-emerald-400">
+              <option value="2000">2.0s</option>
+              <option value="3000" selected>3.0s</option>
+              <option value="4500">4.5s</option>
+            </select>
+          </div>
+
           <label class="flex items-center gap-2 cursor-pointer text-slate-200 font-medium">
             <input id="chk-export-overlay-title" type="checkbox" checked class="accent-emerald-500 rounded" />
-            <span>Incluir rótulo inferior con nombre del Tag, Equipo y Logo RCL</span>
+            <span>Incluir marcador inferior (Tag, Equipo y Logo RCL)</span>
           </label>
         </div>
 
         <!-- Barra de progreso de renderizado -->
         <div id="export-progress-box" class="hidden space-y-1.5 pt-2">
           <div class="flex justify-between text-[11px] font-mono">
-            <span id="export-progress-status" class="text-amber-400">Renderizando clip 1...</span>
+            <span id="export-progress-status" class="text-amber-400">Preparando motor MP4...</span>
             <span id="export-progress-pct" class="text-white font-bold">0%</span>
           </div>
           <div class="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
@@ -470,7 +495,7 @@
       <div class="px-4 py-3 bg-[#0a0f1d] border-t border-slate-800 flex justify-end gap-2">
         <button id="btn-cancel-video-export" class="px-3 py-1.5 rounded bg-[#1e293b] text-slate-300 text-xs">Cancelar</button>
         <button id="btn-start-video-export" class="px-4 py-1.5 rounded bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold flex items-center gap-1.5">
-          <i data-lucide="download" class="w-3.5 h-3.5"></i> Iniciar Renderizado y Descargar
+          <i data-lucide="download" class="w-3.5 h-3.5"></i> Renderizar y Descargar .MP4
         </button>
       </div>
     </div>
@@ -518,8 +543,8 @@
         </div>
       </div>
       <div class="px-4 py-3 bg-[#0a0f1d] border-t border-slate-800 flex justify-between items-center">
-        <button id="btn-update-clip-vectors" class="px-2.5 py-1.5 rounded bg-sky-500/15 hover:bg-sky-500/25 text-sky-400 border border-sky-500/30 text-[11px] font-medium">
-          Guardar Pizarra Actual en este Clip
+        <button id="btn-remove-clip-vectors" class="px-2.5 py-1.5 rounded bg-rose-500/15 hover:bg-rose-500/25 text-rose-400 border border-rose-500/30 text-[11px] font-medium">
+          Quitar Pizarra del Clip
         </button>
         <div class="flex gap-2">
           <button id="btn-cancel-edit-modal" class="px-3 py-1.5 rounded bg-[#1e293b] text-slate-300 text-xs">Cancelar</button>
