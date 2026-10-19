@@ -76,3 +76,10 @@
   filter: brightness(1.25);
   z-index: 15;
 }
+
+/* Resaltado del clip seleccionado / activo en la lista derecha */
+.clip-card-active {
+  border-color: #10b981 !important;
+  background-color: rgba(16, 185, 129, 0.08) !important;
+  box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.4);
+}
