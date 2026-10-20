@@ -1020,12 +1020,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   /**
    * GUARDAR PIZARRA DENTRO DEL CLIP (SIN DUPLICAR CLIPS)
-   * 1. Si hay un clip seleccionado (state.selectedClipId), mete la pizarra dentro de ese clip.
-   * 2. Si no hay clip seleccionado pero el vídeo está detenido dentro del rango [start, end] de un clip existente, lo mete ahí.
-   * 3. Solo si no existe ningún clip en ese tiempo crea uno nuevo.
    */
   document.getElementById('btn-save-drawing-clip').addEventListener('click', async () => {
-    // Cerrar enlaces o polígonos abiertos antes de serializar
     if (state.drawing.tool === 'chain-link' || state.drawing.tool === 'polygon-zone') {
       setActiveTool('select');
     }
@@ -1040,7 +1036,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const now = state.videoLoaded ? +video.currentTime.toFixed(2) : 0;
 
-    // Buscar clip destino: primero el clip seleccionado, si no uno que contenga el tiempo actual
     let targetClip = state.clips.find(c => c.id === state.selectedClipId);
     if (!targetClip) {
       targetClip = state.clips.find(c => now >= c.start && now <= c.end);
@@ -1048,7 +1043,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     if (targetClip) {
       targetClip.fabricJson = fabricCanvas.toJSON(['tacticalType', 'customColor', 'customSize']);
-      // Guardamos el segundo exacto dentro del clip donde el analista pausó y dibujó la pizarra
       targetClip.drawTimestamp = (now >= targetClip.start && now <= targetClip.end)
         ? now
         : targetClip.timestamp;
@@ -1060,7 +1054,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       renderTimeline();
       notify(`Pizarra integrada dentro del clip "${targetClip.label}" (en ${formatTimeShort(targetClip.drawTimestamp)}) sin duplicar.`, 'success');
     } else {
-      // Si no había ningún clip creado en ese momento, creamos uno nuevo con la pizarra integrada
       await registerClipEvent({ id: 'pizarra', name: 'Pizarra Táctica RCL', category: 'Ataque' });
     }
   });
@@ -1143,7 +1136,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       const hasVectors = clip.fabricJson && clip.fabricJson.objects && clip.fabricJson.objects.length > 0;
       const targetDrawSec = clip.drawTimestamp !== undefined ? clip.drawTimestamp : clip.timestamp;
 
-      // Si el clip tiene una pizarra guardada adentro y llegamos a su segundo exacto, mostrar la pizarra automáticamente
       if (hasVectors && !state.hasShownClipDrawing && video.currentTime >= targetDrawSec) {
         state.hasShownClipDrawing = true;
         video.pause();
@@ -1152,7 +1144,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
       }
 
-      // Fin del clip
       if (video.currentTime >= clip.end) {
         if (state.isPlayingPlaylist && state.playlistQueue.length > 0) {
           const nextClip = state.playlistQueue.shift();
@@ -1266,7 +1257,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   // ============================================================================
-  // 10. TAGGING, INTEGRACIÓN DE PIZARRA EN CLIP Y GESTIÓN DE PLAYLIST
+  // 10. TAGGING (CLIC IZQ: ETIQUETAR | CLIC DER: EDITAR/BORRAR TAG) Y PLAYLIST
   // ============================================================================
   const btnHome = document.getElementById('btn-team-home');
   const btnAway = document.getElementById('btn-team-away');
@@ -1296,7 +1287,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       block.innerHTML = `
         <div class="flex items-center justify-between mb-1.5">
           <span class="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border ${meta.badge}">${cat}</span>
-          <span class="text-[10px] font-mono text-slate-500">${catTags.length} tags</span>
+          <span class="text-[9px] font-mono text-slate-500">Clic der: Editar/Borrar • ${catTags.length} tags</span>
         </div>
         <div class="grid grid-cols-2 gap-1.5 tag-grid"></div>
       `;
@@ -1305,12 +1296,22 @@ document.addEventListener('DOMContentLoaded', async () => {
       catTags.forEach(tag => {
         const btn = document.createElement('button');
         btn.id = `tag-btn-${tag.id}`;
+        btn.title = 'Clic izquierdo: Registrar Clip | Clic derecho: Modificar o borrar este Tag';
         btn.className = `border rounded-md px-2.5 py-1.5 text-left text-xs font-medium flex items-center justify-between gap-1.5 transition text-slate-100 ${meta.btn}`;
         btn.innerHTML = `
           <span class="truncate">${tag.name}</span>
           <kbd class="px-1.5 py-0.5 text-[10px] font-mono font-bold rounded border shrink-0 ${meta.key}">${tag.key}</kbd>
         `;
+
+        // Clic izquierdo: etiqueta y crea el clip
         btn.addEventListener('click', () => registerClipEvent(tag));
+
+        // Clic derecho: abre el modal para editar o eliminar este botón de tag
+        btn.addEventListener('contextmenu', (e) => {
+          e.preventDefault();
+          openTagModal(tag);
+        });
+
         grid.appendChild(btn);
       });
 
@@ -1459,14 +1460,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         await persistState();
       });
 
-      // Clic en la tarjeta: selecciona este clip y lo reproduce desde su inicio (mostrando su pizarra cuando llegue al segundo de la pizarra)
       item.addEventListener('click', (e) => {
         if (e.target.closest('button') || e.target.closest('input')) return;
         state.isPlayingPlaylist = false;
         playClip(clip, false);
       });
 
-      // Botón rápido de pluma: salta directamente al fotograma clave del clip en pausa para dibujar o editar su pizarra sin duplicarlo
       item.querySelector('[data-act="draw-here"]').addEventListener('click', (e) => {
         e.stopPropagation();
         selectClipForDrawing(clip);
@@ -1635,13 +1634,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
-  /**
-   * Detecta el mejor códec MP4 / H.264 soportado por el navegador para garantizar máxima calidad y archivo .mp4
-   */
   function getBestMp4MimeType() {
     const candidates = [
-      'video/mp4;codecs=avc1.64002A,mp4a.40.2', // H.264 High Profile 1080p MP4
-      'video/mp4;codecs=avc1.42E01E,mp4a.40.2', // H.264 Baseline MP4
+      'video/mp4;codecs=avc1.64002A,mp4a.40.2',
+      'video/mp4;codecs=avc1.42E01E,mp4a.40.2',
       'video/mp4;codecs=avc1',
       'video/mp4;codecs=h264',
       'video/mp4',
@@ -1657,10 +1653,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     return '';
   }
 
-  /**
-   * Renderiza el JSON de Fabric.js en un StaticCanvas independiente a la resolución exacta de exportación (1080p/720p)
-   * evitando cualquier pixelación o borrosidad.
-   */
   function renderHighResVectorsOffscreen(fabricJson, targetW, targetH) {
     return new Promise((resolve) => {
       if (!fabricJson || !fabricJson.objects || fabricJson.objects.length === 0) {
@@ -1696,20 +1688,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (clips.length === 0) return;
 
     cancelExportFlag = false;
-    const qualityProfile = document.getElementById('select-export-quality').value;
+    const qualitySelect = document.getElementById('select-export-quality');
+    const qualityProfile = qualitySelect ? qualitySelect.value : '1080p';
     const pauseOnDrawings = document.getElementById('chk-export-pause-drawings').checked;
-    const freezeDurationMs = parseInt(document.getElementById('select-freeze-duration').value, 10) || 3000;
+    const freezeSelect = document.getElementById('select-freeze-duration');
+    const freezeDurationMs = freezeSelect ? (parseInt(freezeSelect.value, 10) || 3000) : 3000;
     const showLowerThird = document.getElementById('chk-export-overlay-title').checked;
 
-    // Configurar resolución y bitrate óptimo para mantener máxima nitidez con peso contenido
     let exportW = 1920;
     let exportH = 1080;
-    let targetBitrate = 8000000; // 8 Mbps para 1080p
+    let targetBitrate = 8000000;
 
     if (qualityProfile === '720p') {
       exportW = 1280;
       exportH = 720;
-      targetBitrate = 4500000; // 4.5 Mbps para 720p
+      targetBitrate = 4500000;
     } else if (qualityProfile === 'native' && video.videoWidth && video.videoHeight) {
       exportW = video.videoWidth;
       exportH = video.videoHeight;
@@ -1802,7 +1795,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       progressPct.textContent = `${pct}%`;
       progressBar.style.width = `${pct}%`;
 
-      // Pre-renderizar la pizarra vectorial del clip a resolución Full HD/HD nativa
       const hiResVectorLayer = hasVectors
         ? await renderHighResVectorsOffscreen(clip.fabricJson, exportW, exportH)
         : null;
@@ -1935,7 +1927,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   // ============================================================================
-  // 13. MODALES DE EDICIÓN Y EXPORTACIÓN JSON / CSV
+  // 13. MODALES DE EDICIÓN DE CLIPS, EDICIÓN/BORRADO DE TAGS Y EXPORTACIÓN
   // ============================================================================
   const modalEditClip = document.getElementById('modal-edit-clip');
 
@@ -1953,19 +1945,22 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('btn-close-edit-modal').addEventListener('click', closeEditModal);
   document.getElementById('btn-cancel-edit-modal').addEventListener('click', closeEditModal);
 
-  document.getElementById('btn-remove-clip-vectors').addEventListener('click', async () => {
-    const id = document.getElementById('edit-clip-id').value;
-    const idx = state.clips.findIndex(c => c.id === id);
-    if (idx === -1) return;
+  const btnRemoveVectors = document.getElementById('btn-remove-clip-vectors') || document.getElementById('btn-update-clip-vectors');
+  if (btnRemoveVectors) {
+    btnRemoveVectors.addEventListener('click', async () => {
+      const id = document.getElementById('edit-clip-id').value;
+      const idx = state.clips.findIndex(c => c.id === id);
+      if (idx === -1) return;
 
-    state.clips[idx].fabricJson = null;
-    clearFabricCanvas();
-    state.clips[idx].thumbnail = generateThumbnailBase64();
-    await persistState();
-    renderClipsList();
-    closeEditModal();
-    notify('Pizarra eliminada del clip (el clip se mantiene intacto).', 'info');
-  });
+      state.clips[idx].fabricJson = null;
+      clearFabricCanvas();
+      state.clips[idx].thumbnail = generateThumbnailBase64();
+      await persistState();
+      renderClipsList();
+      closeEditModal();
+      notify('Pizarra eliminada del clip (el clip se mantiene intacto).', 'info');
+    });
+  }
 
   document.getElementById('btn-save-edit-modal').addEventListener('click', async () => {
     const id = document.getElementById('edit-clip-id').value;
@@ -1988,18 +1983,69 @@ document.addEventListener('DOMContentLoaded', async () => {
     notify('Clip actualizado.', 'success');
   });
 
+  // --- GESTIÓN DE BOTONES DE ETIQUETADO (CREAR, EDITAR Y BORRAR CON CLIC DERECHO) ---
   const modalNewTag = document.getElementById('modal-new-tag');
-  document.getElementById('btn-open-new-tag').addEventListener('click', () => {
-    document.getElementById('input-tag-name').value = '';
-    document.getElementById('input-tag-shortcut').value = '';
+
+  // Auto-inyectar input oculto y botón de borrar si el index.html no los tenía aún
+  let inputEditTagId = document.getElementById('input-edit-tag-id');
+  if (!inputEditTagId && modalNewTag) {
+    inputEditTagId = document.createElement('input');
+    inputEditTagId.type = 'hidden';
+    inputEditTagId.id = 'input-edit-tag-id';
+    modalNewTag.appendChild(inputEditTagId);
+  }
+
+  let btnDeleteTagModal = document.getElementById('btn-delete-tag-modal');
+  if (!btnDeleteTagModal && modalNewTag) {
+    const cancelBtn = document.getElementById('btn-cancel-tag-modal');
+    if (cancelBtn && cancelBtn.parentElement) {
+      const footerBar = cancelBtn.parentElement;
+      footerBar.className = 'px-4 py-3 bg-[#0a0f1d] border-t border-slate-800 flex items-center justify-between gap-2';
+      btnDeleteTagModal = document.createElement('button');
+      btnDeleteTagModal.id = 'btn-delete-tag-modal';
+      btnDeleteTagModal.type = 'button';
+      btnDeleteTagModal.className = 'hidden px-2.5 py-1.5 rounded bg-rose-500/15 hover:bg-rose-500/25 text-rose-400 border border-rose-500/30 text-xs font-semibold items-center gap-1 transition mr-auto';
+      btnDeleteTagModal.innerHTML = '<i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Borrar Tag';
+      footerBar.insertBefore(btnDeleteTagModal, footerBar.firstChild);
+    }
+  }
+
+  function openTagModal(tagToEdit = null) {
+    const saveBtn = document.getElementById('btn-save-tag-modal');
+    if (tagToEdit) {
+      // Modo Edición / Borrado (Clic derecho sobre un botón de Tag)
+      inputEditTagId.value = tagToEdit.id;
+      document.getElementById('input-tag-name').value = tagToEdit.name;
+      document.getElementById('select-tag-category').value = tagToEdit.category;
+      document.getElementById('input-tag-shortcut').value = tagToEdit.key;
+      if (saveBtn) saveBtn.textContent = 'Guardar Cambios';
+      if (btnDeleteTagModal) {
+        btnDeleteTagModal.classList.remove('hidden');
+        btnDeleteTagModal.classList.add('flex');
+      }
+    } else {
+      // Modo Creación (Botón "+ Añadir Tag")
+      inputEditTagId.value = '';
+      document.getElementById('input-tag-name').value = '';
+      document.getElementById('input-tag-shortcut').value = '';
+      if (saveBtn) saveBtn.textContent = 'Crear Botón';
+      if (btnDeleteTagModal) {
+        btnDeleteTagModal.classList.add('hidden');
+        btnDeleteTagModal.classList.remove('flex');
+      }
+    }
     modalNewTag.classList.remove('hidden');
-  });
+    lucide.createIcons();
+  }
+
+  document.getElementById('btn-open-new-tag').addEventListener('click', () => openTagModal(null));
 
   const closeTagModal = () => modalNewTag.classList.add('hidden');
   document.getElementById('btn-close-tag-modal').addEventListener('click', closeTagModal);
   document.getElementById('btn-cancel-tag-modal').addEventListener('click', closeTagModal);
 
   document.getElementById('btn-save-tag-modal').addEventListener('click', async () => {
+    const editId = inputEditTagId ? inputEditTagId.value : '';
     const name = document.getElementById('input-tag-name').value.trim();
     const category = document.getElementById('select-tag-category').value;
     const key = document.getElementById('input-tag-shortcut').value.trim().toUpperCase();
@@ -2009,13 +2055,52 @@ document.addEventListener('DOMContentLoaded', async () => {
       return;
     }
 
-    state.tags.push({ id: 'tag_' + Date.now(), name, category, key });
+    if (editId) {
+      // Modificar tag existente
+      const idx = state.tags.findIndex(t => t.id === editId);
+      if (idx !== -1) {
+        const oldName = state.tags[idx].name;
+        state.tags[idx] = { ...state.tags[idx], name, category, key };
+
+        // Actualizar también los clips que ya usaban ese tag
+        state.clips.forEach(c => {
+          if (c.label === oldName) {
+            c.label = name;
+            c.category = category;
+          }
+        });
+        notify(`Tag actualizado a "${name}" [${key}].`, 'success');
+      }
+    } else {
+      // Crear nuevo tag
+      state.tags.push({ id: 'tag_' + Date.now(), name, category, key });
+      notify(`Botón "${name}" [${key}] añadido.`, 'success');
+    }
+
     await persistState();
     renderTaggingMatrix();
+    renderClipsList();
+    renderTimeline();
     closeTagModal();
-    notify(`Botón "${name}" [${key}] añadido.`, 'success');
   });
 
+  if (btnDeleteTagModal) {
+    btnDeleteTagModal.addEventListener('click', async () => {
+      const editId = inputEditTagId ? inputEditTagId.value : '';
+      if (!editId) return;
+
+      const tagObj = state.tags.find(t => t.id === editId);
+      if (confirm(`¿Eliminar el botón "${tagObj ? tagObj.name : ''}" de la botonera? (Los clips ya grabados no se borrarán)`)) {
+        state.tags = state.tags.filter(t => t.id !== editId);
+        await persistState();
+        renderTaggingMatrix();
+        closeTagModal();
+        notify('Botón eliminado de la botonera.', 'info');
+      }
+    });
+  }
+
+  // --- EXPORTAR E IMPORTAR JSON / CSV ---
   document.getElementById('btn-export-json').addEventListener('click', () => {
     const payload = {
       suite: 'RCL Video Análisis',
